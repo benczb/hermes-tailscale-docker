@@ -24,7 +24,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_seed_allowlist_no_secret_import(self):
         b.seed(self.target, 'synthetic-password-$value#yes')
-        files = {str(p.relative_to(self.target / 'data')) for p in (self.target / 'data').rglob('*') if p.is_file()}
+        files = {p.relative_to(self.target / 'data').as_posix() for p in (self.target / 'data').rglob('*') if p.is_file()}
         self.assertEqual(files, set(b.ALLOWLIST))
         self.assertNotIn('auth.json', files)
         self.assertIn('$value#yes', (self.target / 'runtime.env').read_text())
@@ -178,8 +178,8 @@ class BootstrapTests(unittest.TestCase):
         self.assertRegex(b.pins()['runtime']['image'], r'v0\.22\.2@sha256:[0-9a-f]{64}$')
 
     def test_bash_syntax(self):
-        if not __import__('shutil').which('bash'):
-            self.skipTest('bash absent')
+        if os.name == 'nt' or not __import__('shutil').which('bash'):
+            self.skipTest('POSIX Bash check; Windows bash may be an unconfigured WSL shim')
         subprocess.run(['bash', '-n', str(ROOT / 'bootstrap.sh')], check=True)
 
     def test_profile_frontmatter_and_public_file_policy(self):
