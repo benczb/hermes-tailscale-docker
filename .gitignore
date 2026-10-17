@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+runtime.env
+.env
+/data/
+/compose.yaml
+*.partial

@@ -1,0 +1,25 @@
+{
+  "head": {
+    "buildId": "e1734abd5c6128ecbd4d4b995a392750",
+    "manifestKey": "releases/channel-builds/e1734abd5c6128ecbd4d4b995a392750/build.json",
+    "sequence": 2,
+    "sha256": "3ddcc4ff56af7ec743869ff2509bf03c1be9088752c962defce6276a8cad4aac"
+  },
+  "identity": {
+    "appId": "com.nousresearch.hermes-bundled",
+    "appNamePascal": "HermesBundled",
+    "artifactNamePascal": "HermesBundled",
+    "cliName": "hermes",
+    "displayName": "Hermes Agent",
+    "msixAppIdWithOrg": "NousResearch.HermesBundled",
+    "token": "f204dc6857361e33",
+    "windowsExecutableName": "Hermes Agent"
+  },
+  "name": "stable",
+  "nextSequence": 3,
+  "policy": "stable-release",
+  "repository": "NousResearch/hermes-agent",
+  "revision": 5,
+  "schema": 1,
+  "state": "active"
+}

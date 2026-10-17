@@ -1,0 +1,19 @@
+{
+  "runtime": {
+    "version": "v0.22.2",
+    "image": "nousresearch/hermes-agent:v0.22.2@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919"
+  },
+  "desktop": {
+    "macos-arm64": {
+      "url": "https://hermes-assets.nousresearch.com/releases/tag/rc.3-v0.22.0/HermesBundled-0.22.0-mac-arm64.zip",
+      "sha256": "8a3b64b4e2b10b88912937f883a2c616ea902f3b5c683d3cdffc459de7fa8f73",
+      "size": 1583117114
+    },
+    "windows": {
+      "url": "https://hermes-assets.nousresearch.com/releases/tag/rc.3-v0.22.0/HermesBundled-2026.6864.2132.0-win.msixbundle",
+      "sha256": "45faa4e1846096f8d68a3f76e2fc70f505c9df596d86c1190811a2e64bb148e4",
+      "size": 4333826858
+    },
+    "version": "0.22.0"
+  }
+}

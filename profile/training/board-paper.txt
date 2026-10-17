@@ -1,0 +1,2 @@
+FICTIONAL TRAINING DATA ONLY
+Harbour Example Ltd is an invented company. A fictional supplier outage lasted four hours. No customer identifiers are included. The board is asked to review resilience evidence, vendor retention controls and verification of AI-generated briefing notes. The impact and review dates remain for discussion.
