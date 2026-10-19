@@ -8,7 +8,7 @@ license: MIT
 
 # Synthetic Board Review
 
-Read training/risk-register.csv and training/board-paper.txt from the training data home. Only use these fictional examples, never actual board papers.
+Inside the Docker terminal sandbox, read /opt/sid-training/risk-register.csv and /opt/sid-training/board-paper.txt (the read-only synthetic training mount). Write drafts in /workspace, not in the read-only input directory. Only use these fictional examples, never actual board papers.
 
 1. List each risk with evidence, existing controls and information gaps.
 2. Propose likelihood and impact on a 1 to 5 scale with a short rationale. Do not present an ordinal product as a calibrated probability.
