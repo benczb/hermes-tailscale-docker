@@ -20,7 +20,7 @@ class BootstrapTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.addCleanup(self.tmp.cleanup)
-        self.target = Path(self.tmp.name) / 'training'
+        self.target = Path(self.tmp.name) / 'workspace'
 
     # --- seeding: native data home, synthetic-only, scoped sandbox config, no secrets imported ---
     def test_seed_allowlist_no_secret_import(self):
@@ -35,11 +35,11 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn('HERMES_DASHBOARD_BASIC_AUTH_USERNAME=participant', env)
         if os.name != 'nt':
             self.assertEqual((home / '.env').stat().st_mode & 0o777, 0o600)
-        # Training config: Docker terminal sandbox backend, scoped training data only.
+        # Workspace config: Docker terminal sandbox backend, scoped workspace data only.
         cfg = (home / 'config.yaml').read_text()
         self.assertIn('backend: docker', cfg)
-        self.assertIn(str((home / 'training').resolve()).replace('\\', '\\\\'), cfg)
-        self.assertIn('cwd: /opt/sid-training', cfg)
+        self.assertIn(str((home / 'workspace').resolve()).replace('\\', '\\\\'), cfg)
+        self.assertIn('cwd: /opt/hermes-workspace', cfg)
         self.assertIn('docker_mount_cwd_to_workspace: false', cfg)
         # No broad host mounts, no Docker socket, no credentials in config.
         self.assertNotIn('docker.sock', cfg)
@@ -115,14 +115,14 @@ class BootstrapTests(unittest.TestCase):
         self.target.mkdir()
         with patch.object(b.platform, 'system', return_value='Linux'):
             b.write_launchers(self.target, Path('/exact/native/hermes'))
-        text = (self.target / 'SID-Desktop').read_text()
+        text = (self.target / 'Hermes-Desktop').read_text()
         self.assertIn('export HERMES_HOME=', text)
         self.assertIn(str(self.target / 'home'), text)
         self.assertIn('--hermes-root', text)
         self.assertIn(str(self.target / 'home/hermes-agent'), text)
         with patch.object(b.platform, 'system', return_value='Windows'):
             b.write_launchers(self.target, Path('/exact/native/hermes.exe'))
-        self.assertIn('$env:HERMES_HOME', (self.target / 'SID-Desktop.ps1').read_text())
+        self.assertIn('$env:HERMES_HOME', (self.target / 'Hermes-Desktop.ps1').read_text())
 
     def test_repeat_never_overwrites(self):
         b.seed(self.target, 'synthetic-only-long-password')
@@ -294,10 +294,10 @@ class BootstrapTests(unittest.TestCase):
              patch.object(b.sys, 'argv', ['bootstrap.py', '--home', str(self.target)]):
             b.main()
         self.assertEqual(health.call_args.args[2], 'synthetic-password-long')
-        # Native install invoked, scoped to the training home (env carries HERMES_HOME).
+        # Native install invoked, scoped to the dedicated home (env carries HERMES_HOME).
         install = [c for c in calls if 'curl -fsSL' in ' '.join(c)]
         self.assertTrue(install)
-        self.assertTrue((self.target / 'SID-Desktop').exists())
+        self.assertTrue((self.target / 'Hermes-Desktop').exists())
         self.assertNotIn(('hermes', 'dashboard'), calls)
         # Serve rule added only after authenticated health (the last tailnet mutation).
         self.assertIn(('tailscale', 'serve', '--bg', '--tcp=9119', 'tcp://127.0.0.1:9119'), calls)
@@ -344,13 +344,15 @@ class BootstrapTests(unittest.TestCase):
             self.skipTest('POSIX Bash check; Windows bash may be an unconfigured WSL shim')
         subprocess.run(['bash', '-n', str(ROOT / 'bootstrap.sh')], check=True)
 
-    def test_profile_frontmatter_and_public_file_policy(self):
-        text = (ROOT / 'profile/skills/sid-board-review/SKILL.md').read_text()
-        self.assertTrue(text.startswith('---\nname: sid-board-review\n'))
-        self.assertIn('\ndescription:', text)
-        for path in (ROOT / 'profile').rglob('*'):
-            self.assertFalse(path.is_symlink())
-            self.assertNotIn(path.name, ('.env', 'auth.json', 'state.db', 'config.yaml'))
+    def test_no_bundled_persona_or_training_materials(self):
+        self.assertEqual(b.ALLOWLIST, ())
+        self.assertFalse((ROOT / 'profile').exists())
+        b.seed(self.target, 'Long-safe-password-123')
+        home = self.target / 'home'
+        self.assertTrue((home / 'workspace').is_dir())
+        self.assertEqual(list((home / 'workspace').iterdir()), [])
+        self.assertFalse((home / 'SOUL.md').exists())
+        self.assertFalse((home / 'skills').exists())
 
 
 if __name__ == '__main__':

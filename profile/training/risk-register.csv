@@ -1,4 +1,0 @@
-id,risk,existing_control,proposed_owner,evidence_gap
-R01,Fictional supplier outage disrupts customer service,Quarterly continuity exercise,Operations Director,No recent failover evidence
-R02,Fictional vendor retains data longer than agreed,Annual vendor review,Risk Director,Deletion attestation missing
-R03,Fictional AI briefing contains unsupported statements,Human sign-off,Company Secretary,Source verification incomplete

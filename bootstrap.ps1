@@ -1,4 +1,4 @@
-param([string]$Home = (Join-Path $HOME 'hermes-sid-training'), [switch]$Desktop)
+param([string]$Home = (Join-Path $HOME 'hermes-tailscale-docker'), [switch]$Desktop)
 $ErrorActionPreference = 'Stop'
 # Native Windows flow: bootstrap.py drives the official native installer + native runtime.
 # It does NOT use WSL. Docker Desktop (host) is the terminal sandbox backend.
