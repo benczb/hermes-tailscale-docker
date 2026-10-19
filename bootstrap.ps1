@@ -1,8 +1,10 @@
-param([string]$Directory = (Join-Path $HOME 'hermes-sid-training'), [switch]$Desktop)
+param([string]$Home = (Join-Path $HOME 'hermes-sid-training'), [switch]$Desktop)
 $ErrorActionPreference = 'Stop'
+# Native Windows flow: bootstrap.py drives the official native installer + native runtime.
+# It does NOT use WSL. Docker Desktop (host) is the terminal sandbox backend.
 $python = Get-Command python -ErrorAction SilentlyContinue
 $py = Get-Command py -ErrorAction SilentlyContinue
-$scriptArgs = @((Join-Path $PSScriptRoot 'bootstrap.py'), '--directory', $Directory)
+$scriptArgs = @((Join-Path $PSScriptRoot 'bootstrap.py'), '--home', $Home)
 if ($Desktop) { $scriptArgs += '--desktop' }
 if ($py) { & py -3 @scriptArgs }
 elseif ($python) { & python @scriptArgs }

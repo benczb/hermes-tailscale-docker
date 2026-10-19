@@ -1,7 +1,8 @@
 {
-  "runtime": {
-    "version": "v0.22.2",
-    "image": "nousresearch/hermes-agent:v0.22.2@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919"
+  "native": {
+    "install_sh": "https://hermes-agent.nousresearch.com/install.sh",
+    "install_ps1": "https://hermes-agent.nousresearch.com/install.ps1",
+    "note": "Hermes runtime installs natively via the official one-liner (channel: stable). It updates with `hermes update` or the Desktop one-click update. The Docker terminal sandbox uses the host's own Hermes image (terminal.backend: docker); no separate runtime image is pinned here."
   },
   "desktop": {
     "macos-arm64": {

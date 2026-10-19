@@ -1,16 +1,32 @@
 # Verification record
 
-Development verification on Linux only, without installing dependencies or changing host services:
+Development verification on Linux only, without installing host packages, changing host
+services or touching the real `~/.hermes`:
 
-- `python3 -W error::ResourceWarning -m unittest discover -s tests -v`: 18 tests passed.
-- The tests include a real loopback HTTP fixture proving cookie persistence, not a real Hermes dashboard. Docker/Tailscale effects and OS package opening are mocked.
+- `python3 -W error::ResourceWarning -m unittest discover -s tests -v`: **25 tests passed**.
+- The tests include a real loopback HTTP cookie fixture proving authenticated cookie
+  persistence against a local handler (not a real Hermes dashboard). Docker, Tailscale,
+  the native installer, the dashboard and OS package-opening effects are mocked.
 - `python3 -m py_compile bootstrap.py tests/test_bootstrap.py`: passed.
 - `bash -n bootstrap.sh`: passed.
-- Real `docker compose -f <isolated-generated-file> config --quiet`: passed. No daemon changes or container launches.
 - `git diff --cached --check`: passed before publication.
-- Official Desktop artifact HEAD requests: HTTP 200 for the exact macOS/Windows URLs in versions.json. Receipt SHA-256 verified before deriving pins.
-- Docker Hub manifest GET: v0.22.2 resolved to the pinned multi-architecture digest, with Linux amd64 and arm64 platform manifests.
+- Native install one-liner HEAD requests: HTTP 200 for
+  `https://hermes-agent.nousresearch.com/install.sh` and `install.ps1`.
+- Official Desktop artifact HEAD requests: HTTP 200 for the exact macOS/Windows URLs in
+  `versions.json`. Receipt SHA-256 verified before deriving pins.
+- Pinned-source review (`NousResearch/hermes-agent` v0.22.2) confirmed: the dashboard
+  defaults to loopback `127.0.0.1:9119`; the auth middleware is a no-op on loopback (no
+  `--insecure` needed) yet the cookie gate engages because the basic auth provider is
+  configured; `terminal.backend: docker` uses the host Docker daemon and `terminal.docker_volumes`
+  entries are passed verbatim to `docker -v` (so `:ro` survives).
 
-PowerShell was not installed on the development host. The GitHub workflow parses the wrapper on Windows and runs mocked tests on all three runner OSes. Consult the actual Actions run for results; the workflow is not a Desktop/runtime E2E test.
+PowerShell was not installed on the development host. The GitHub workflow parses the wrapper
+on Windows and runs mocked tests on all three runner OSes. Consult the actual Actions run for
+results; the workflow is not a Desktop/runtime E2E test.
 
-Missing acceptance checks: real Docker launch and provider wizard; a paid/approved synthetic model response; full multi-gigabyte Desktop download and OS installation; real Desktop native sign-in; real tailnet forwarding/ACL denial; Windows ACL review; Linux Desktop source build. No claim of real Mac/Windows E2E verification is made.
+Missing acceptance checks (honest E2E gaps, not claimed capabilities): a real native Hermes
+install on macOS/Windows/Linux; a real provider wizard and a paid/approved synthetic model
+response; a real Docker terminal sandbox launch running a command; the full multi-gigabyte
+Desktop download and OS installation; real Desktop native sign-in and its one-click update;
+real tailnet forwarding/ACL denial; Windows ACL review; Linux Desktop source build. No claim
+of real Mac/Windows E2E verification is made.

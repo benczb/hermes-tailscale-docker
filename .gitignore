@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
-runtime.env
+# Seeded per-install training home (never commit credentials or generated config):
 .env
-/data/
-/compose.yaml
+home/config.yaml
+home/.env
 *.partial
