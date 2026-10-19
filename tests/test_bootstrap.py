@@ -97,7 +97,7 @@ class BootstrapTests(unittest.TestCase):
              patch.object(b, 'health') as health:
             self.assertEqual(b.start_dashboard(Path('/exact/native/hermes'), self.target, 'password', {}), 12345)
         args, kwargs = popen.call_args
-        self.assertEqual(args[0][0], '/exact/native/hermes')
+        self.assertEqual(args[0][0], str(Path('/exact/native/hermes')))
         self.assertIn('--no-open', args[0])
         self.assertTrue(kwargs['start_new_session'])
         self.assertEqual(kwargs['stdin'], subprocess.DEVNULL)
