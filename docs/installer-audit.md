@@ -87,3 +87,7 @@ State/logs: ~/.hermes-workshop-installer/<profile>/ on the backend; journalctl -
 Remove just this forwarding with tailscale serve --tcp=9119 off on the server. Avoid tailscale serve reset because it removes unrelated endpoints. Disable the macOS launchd or Linux systemd user service to stop its backend, preserving profile data. On Windows, stop/unregister the HermesWorkshop-workshop Scheduled Task to disable its backend while keeping profile data.
 
 Packages are deterministic: regenerate with python3 scripts/package-installer.py; --check rejects stale ZIPs/checksums. Desktop remote URL behavior follows upstream docs: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/desktop.md. Tailscale TCP reference: https://tailscale.com/docs/reference/tailscale-cli/serve.
+
+## Resuming an interrupted Windows profile wizard
+
+Use -SkipProfileSetup on setup-windows.ps1 to explicitly defer a pending model/provider setup wizard and continue Desktop/auth/backend setup. Failed wizard calls preserve setup-pending; a successful wizard or explicit deferral clears it. Existing completed profiles do not rerun the wizard. This does not configure a provider or promise chat/model readiness; configure one afterward using Desktop or hermes -p workshop model. Tailscale is checked before profile setup and skips sign-in when already connected. Desktop builds after the dashboard-login step; the installer's final Ready URL and Desktop launcher message distinguish app completion from the upstream wizard's separate Setup Complete message.

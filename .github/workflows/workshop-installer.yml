@@ -23,6 +23,13 @@ jobs:
       - name: Check Bash syntax (macOS uses stock Bash 3.2)
         if: runner.os != 'Windows'
         run: /bin/bash -n scripts/setup-macos-linux.sh
+      - name: Test interrupted profile wizard and explicit resume
+        shell: pwsh
+        run: ./scripts/test-windows-resume.ps1
+      - name: Test profile resume in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-windows-resume.ps1
       - name: Test local WSL2 Docker engine, Windows Home and port conflicts
         shell: pwsh
         run: ./scripts/test-windows-docker.ps1

@@ -48,6 +48,16 @@ Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your n
 
 There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The Docker engine and backend must run on this PC.
 
+## Resume after the Hermes model/provider wizard
+
+If setup returns to PowerShell after the Hermes wizard and has not shown the dashboard-login prompts, Desktop build or final Ready URL, download/extract the current Windows ZIP and run this in Administrator PowerShell from its included folder:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -SkipProfileSetup
+```
+
+This explicitly defers the pending model/provider wizard and continues Desktop, dashboard credentials, backend and Tailscale forwarding setup. It preserves your existing profile and model keys. Configure a model afterward in Desktop or with `hermes -p workshop model`; without a provider Hermes cannot chat yet. Tailscale is checked before the wizard; an already signed-in installation will not prompt again. Desktop is built automatically, rather than asking for a separate installation approval. The Hermes wizard's own “Setup Complete” message does not mean the surrounding installer has completed; look for its final Ready URL and Desktop launcher path.
+
 ## Reset a forgotten dashboard login
 
 Run from the extracted repository folder. Normal reruns preserve the existing login.

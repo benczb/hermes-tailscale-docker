@@ -3,7 +3,8 @@
 param(
     [string]$ProfileName = 'workshop',
     [string]$ProfileSource = '',
-    [switch]$ResetDashboardAuth
+    [switch]$ResetDashboardAuth,
+    [switch]$SkipProfileSetup
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,20 @@ function Invoke-Checked {
     param([string]$File, [string[]]$Arguments)
     & $File @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$File failed (exit $LASTEXITCODE). Fix the error and rerun." }
+}
+function Complete-WorkshopProfileSetup {
+    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [switch]$Skip)
+    $pending = Join-Path $StateDirectory 'setup-pending'
+    if (-not (Test-Path $pending)) { return }
+    if ($Skip) {
+        Write-Host 'Deferring the interactive model/provider wizard. Continuing with Desktop, dashboard login and local backend setup.'
+        Write-Host "Configure a provider later in Desktop or with: hermes -p $SelectedProfile model"
+    } else {
+        Write-Host 'Running the Hermes profile wizard. If interrupted, rerun this installer with -SkipProfileSetup to finish app setup and configure your model later.'
+        Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'setup')
+    }
+    # Keep the marker if the wizard fails; clear it only after success or explicit deferral.
+    Remove-Item -LiteralPath $pending
 }
 function New-HexSecret {
     param([int]$Length)
@@ -153,6 +168,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the active Docker context.' }
     Assert-WorkshopDockerEngine $engineInfo.OSType $engineInfo.OperatingSystem $engineInfo.KernelVersion $endpoint
     Invoke-Checked docker @('run', '--rm', 'hello-world')
+    Write-Host 'Checking Tailscale. Existing signed-in installations do not need another login prompt.'
     & tailscale status *> $null
     if ($LASTEXITCODE -ne 0) {
         Write-Host 'Complete Tailscale sign-in in your browser.'
@@ -160,6 +176,7 @@ try {
     }
     $tailIp = (& tailscale ip -4 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $tailIp -notmatch '^100\.\d+\.\d+\.\d+$') { throw 'No Tailscale IPv4 address. Complete sign-in, then rerun.' }
+    Write-Host "Tailscale is connected: $tailIp"
     if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) {
         $installer = Join-Path $state 'hermes-install.ps1'
         Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/NousResearch/hermes-agent/afe3cbd817b7f5655e4172b442acf6fa7c9bb55d/scripts/install.ps1' -OutFile $installer
@@ -167,6 +184,7 @@ try {
         Invoke-Checked powershell.exe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installer, '-NonInteractive', '-IncludeDesktop')
     }
     $hermes = (Get-Command hermes -ErrorAction Stop).Source
+    Write-Host "Using native Hermes CLI: $hermes"
     $profileHome = Join-Path $env:LOCALAPPDATA "hermes\profiles\$ProfileName"
     if (-not (Test-Path $profileHome)) {
         if (-not $ProfileSource) {
@@ -180,15 +198,13 @@ try {
         }
         Invoke-Checked $hermes @('profile', 'install', $ProfileSource, '--name', $ProfileName, '--yes')
         New-Item -ItemType File -Force -Path (Join-Path $state 'setup-pending') | Out-Null
-        Invoke-Checked $hermes @('-p', $ProfileName, 'setup')
-        Remove-Item (Join-Path $state 'setup-pending')
+
     } else {
         Write-Host "Keeping existing profile: $ProfileName"
-        if (Test-Path (Join-Path $state 'setup-pending')) {
-            Invoke-Checked $hermes @('-p', $ProfileName, 'setup')
-            Remove-Item (Join-Path $state 'setup-pending')
-        }
+
     }
+    Complete-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -Skip:$SkipProfileSetup
+    Write-Host 'Configuring the local Docker terminal backend and dashboard login.'
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.backend', 'docker')
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'dashboard.public_url', "http://${tailIp}:9119")
     if ($ResetDashboardAuth -or -not (Test-Path (Join-Path $state 'auth-configured'))) {
@@ -236,6 +252,7 @@ try {
         Write-Host 'Keeping your existing dashboard login. Use -ResetDashboardAuth to choose a new login.'
     }
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'get', 'terminal.backend')
+    Write-Host 'Building/checking Hermes Desktop now. No separate installation confirmation is required.'
     Invoke-Checked $hermes @('-p', $ProfileName, 'desktop', '--build-only')
     # Run at current-user login with limited privileges, even though setup needs elevation.
     $escapedHermes = $hermes.Replace("'", "''")
@@ -267,6 +284,7 @@ try {
     Save-Utf8 $desktopLauncher "Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue`r`nRemove-Item Env:HERMES_DESKTOP_REMOTE_URL -ErrorAction SilentlyContinue`r`n`$env:PATH = '$($env:PATH.Replace("'", "''"))'`r`n& '$escapedHermes' -p '$ProfileName' desktop`r`nexit `$LASTEXITCODE`r`n"
     Write-Host "Open Desktop using: $desktopLauncher. Select profile $ProfileName. Backend starts at user login."
     Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
+    Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
 } catch {
     Write-Error "Setup stopped: $($_.Exception.Message)" -ErrorAction Continue
