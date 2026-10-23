@@ -16,6 +16,25 @@ Assert-WorkshopDockerEngine 'linux' 'Docker Desktop' '6.6.87.2-microsoft-standar
 Assert-Throws { Assert-WorkshopDockerEngine 'windows' 'Docker Desktop' '10.0.26200' 'npipe:////./pipe/docker_engine' }
 Assert-Throws { Assert-WorkshopDockerEngine 'linux' 'Docker Desktop' '6.6-linuxkit' 'npipe:////./pipe/docker_engine' }
 Assert-Throws { Assert-WorkshopDockerEngine 'linux' 'Ubuntu' '6.6-WSL2' 'ssh://remote' }
+# Exercise the real WSL version parser against localized output, then verify update decisions.
+$fakeWslOutput = "WSL version: 2.6.1.0`nKernel version: 6.6.87.2"
+function wsl.exe { $global:LASTEXITCODE=0; return $fakeWslOutput }
+if ((Get-WorkshopWslVersion) -ne [version]'2.6.1.0') { throw 'WSL parser chose the kernel version' }
+$fakeWslOutput = "WSL-Version: 3.0.3.0`nKernel-Version: 6.6.87.2"
+if ((Get-WorkshopWslVersion) -ne [version]'3.0.3.0') { throw 'Localized WSL version parsing failed' }
+$versionAnswers = New-Object 'System.Collections.Generic.Queue[object]'
+function Get-WorkshopWslVersion { return $versionAnswers.Dequeue() }
+$updateCalls = New-Object 'System.Collections.Generic.List[object]'
+$failUpdate = $false
+function Invoke-Checked { param($File,[string[]]$Arguments) if ($failUpdate) { throw 'MSI 1603: WSL service could not be stopped' }; $updateCalls.Add(@($File,$Arguments)) }
+foreach ($existing in @('2.1.5','2.6.1','3.0.3')) { $versionAnswers.Enqueue([version]$existing); Ensure-WorkshopWsl }
+if ($updateCalls.Count) { throw 'Compatible WSL triggered an unnecessary update' }
+$versionAnswers.Enqueue([version]'2.0.0'); $versionAnswers.Enqueue([version]'3.0.3')
+Ensure-WorkshopWsl
+if ($updateCalls.Count -ne 1 -or $updateCalls[0][0] -ne 'wsl.exe' -or $updateCalls[0][1][0] -ne '--update') { throw 'Old WSL was not updated exactly once' }
+$failUpdate = $true; $versionAnswers.Enqueue([version]'2.0.0')
+$failureText=''; try { Ensure-WorkshopWsl } catch { $failureText=$_.Exception.Message }
+if ($failureText -notlike '*Close Docker Desktop*restart Windows*Administrator PowerShell*') { throw 'WSL MSI failure lacked actionable recovery guidance' }
 $fixture=Join-Path ([IO.Path]::GetTempPath()) ('hermes port ' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 $busyPorts = @(9119)

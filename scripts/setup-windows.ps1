@@ -36,6 +36,30 @@ function Assert-WorkshopDockerEngine {
         throw 'Select the local Docker Desktop context, Linux containers and Settings > General > Use the WSL 2 based engine. This installer does not use a remote Docker server or Hyper-V backend.'
     }
 }
+function Get-WorkshopWslVersion {
+    try {
+        $output = (& wsl.exe --version 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) { return $null }
+        $match = [regex]::Match($output, '\d+\.\d+\.\d+(?:\.\d+)?')
+        if ($match.Success) { return [version]$match.Value }
+    } catch { }
+    return $null
+}
+function Ensure-WorkshopWsl {
+    $minimum = [version]'2.1.5'
+    $installed = Get-WorkshopWslVersion
+    if ($installed -and $installed -ge $minimum) {
+        Write-Host "Keeping compatible WSL $installed; no WSL update is needed."
+        return
+    }
+    Write-Host 'WSL 2.1.5 or newer is needed by Docker Desktop. Updating missing/older WSL.'
+    try { Invoke-Checked wsl.exe @('--update') }
+    catch {
+        throw "WSL update failed. Close Docker Desktop, save any WSL work, restart Windows and rerun in Administrator PowerShell. If it still fails, run wsl --update manually and inspect the WSL installer log under your local Temp folder (wsl-install-logs.txt). $($_.Exception.Message)"
+    }
+    $updated = Get-WorkshopWslVersion
+    if (-not $updated -or $updated -lt $minimum) { throw 'WSL update did not report version 2.1.5 or newer. Restart Windows and check wsl --version before rerunning.' }
+}
 function Get-WorkshopBackendPort {
     param([string]$StateDirectory)
     $saved = Join-Path $StateDirectory 'backend-port'
@@ -79,7 +103,7 @@ try {
         }
     }
     if ($featuresChanged) { throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.' }
-    Invoke-Checked wsl.exe @('--update')
+    Ensure-WorkshopWsl
     Invoke-Checked wsl.exe @('--set-default-version', '2')
     $state = Join-Path $env:LOCALAPPDATA "HermesWorkshopInstaller\$ProfileName"
     New-Item -ItemType Directory -Force -Path $state | Out-Null

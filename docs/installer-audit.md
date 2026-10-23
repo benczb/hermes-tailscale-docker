@@ -28,7 +28,7 @@ Before forwarding, /api/status must report auth_required: true using the declare
 
 ## Windows local setup (WSL2 internal Docker engine)
 
-The installer accepts Home and other supported Windows 10/11 desktop editions; it no longer asks for a Linux backend URL. It enables only Microsoft-Windows-Subsystem-Linux and VirtualMachinePlatform if needed, then stops with reboot/rerun instructions. It updates WSL and selects version 2; no user Linux distribution or workshop commands inside WSL are required. Firmware virtualization must be available. It does not enable Microsoft-Hyper-V-All or the Windows Containers feature.
+The installer accepts Home and other supported Windows 10/11 desktop editions; it no longer asks for a Linux backend URL. It enables only Microsoft-Windows-Subsystem-Linux and VirtualMachinePlatform if needed, then stops with reboot/rerun instructions. It reuses WSL 2.1.5 or newer, updates only missing/older WSL and selects version 2; no user Linux distribution or workshop commands inside WSL are required. Firmware virtualization must be available. It does not enable Microsoft-Hyper-V-All or the Windows Containers feature.
 
 Missing Docker Desktop is installed with --backend=wsl-2; missing Tailscale is installed through winget. Complete Docker first-run dialogs, and use Settings > General > Use the WSL 2 based engine. Existing Docker settings are checked, not overwritten live. The engine must report Linux containers, Docker Desktop, a WSL2 kernel and a local named-pipe context. Docker hello-world verifies basic execution before Hermes is configured. A real agent terminal call is still needed to verify the entire sandbox integration.
 
