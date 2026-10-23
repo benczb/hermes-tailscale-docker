@@ -1,0 +1,8 @@
+# Allowlist authored distribution files. Keep secrets, memories and runtime local.
+*
+!.gitignore
+!distribution.yaml
+!config.yaml
+!SOUL.md
+!skills/
+!skills/**

@@ -1,0 +1,67 @@
+name: Workshop installer checks
+on:
+  push:
+    paths: ['Install-Hermes.*', 'scripts/**', 'profiles/**', 'downloads/**', 'README.md', 'docs/**', '.github/workflows/workshop-installer.yml']
+  pull_request:
+    paths: ['Install-Hermes.*', 'scripts/**', 'profiles/**', 'downloads/**', 'README.md', 'docs/**', '.github/workflows/workshop-installer.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scripts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check profile synchronization and installer regression tests
+        run: python scripts/test-installers.py
+      - name: Check Bash syntax (macOS uses stock Bash 3.2)
+        if: runner.os != 'Windows'
+        run: /bin/bash -n scripts/setup-macos-linux.sh
+      - name: Parse Windows installer without installing anything
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          foreach ($file in @('setup-windows.ps1', 'launch-windows.ps1')) {
+            [System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/$file", [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $errors | Format-List; exit 1 }
+          }
+      - name: Test dashboard username and password prompts
+        shell: pwsh
+        run: ./scripts/test-windows-login.ps1
+      - name: Test dashboard login in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-windows-login.ps1
+      - name: Test inherited Windows profile selection and generated backend
+        shell: pwsh
+        run: ./scripts/test-windows-layout.ps1
+      - name: Test layout in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-windows-layout.ps1
+      - name: Parse in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          foreach ($file in @('setup-windows.ps1', 'launch-windows.ps1')) {
+            [System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/$file", [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $errors | Format-List; exit 1 }
+          }
+      - name: Create installer ZIP with executable launchers
+        if: runner.os == 'Linux'
+        run: python scripts/package-installer.py --check
+      - name: Package installer bundle
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-workshop-installer
+          path: work/hermes-workshop-installer.zip

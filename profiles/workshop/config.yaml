@@ -1,0 +1,4 @@
+# Credentials and model selection are supplied by each recipient during setup.
+terminal:
+  backend: docker
+  cwd: /workspace

@@ -1,69 +1,82 @@
 # Hermes + Tailscale + Docker
 
-Guided native **source runtime + source-built Hermes Desktop**, with **Docker Desktop retained only for agent terminal/file tools**. No whole-runtime Compose and no second bundled Desktop download. General-purpose setup with no custom persona, bundled skills or example documents. Not an official Nous Research distribution. This repository remains private.
+Native Hermes Agent and source-built Hermes Desktop, with the agent's terminal tool running in Docker. Includes the workshop Safe Agent Starter profile, prompted dashboard credentials and Tailscale TCP access.
 
-## Prerequisites and start
+## Direct downloads
 
-Have IT approve Python 3.9+, running local Docker Desktop/Engine (Windows: Linux containers), signed-in host Tailscale on PATH, model/provider credentials and the official Hermes source/Desktop build prerequisites. Builds need network, disk space and potentially a compiler. This is not an unattended one-click installer.
+Choose your operating system. These links download a ZIP directly from this public repository; no GitHub sign-in or navigation is required.
 
-Entry points: native macOS, Linux desktop, native Windows PowerShell. WSL is refused because this flow configures host Tailscale. OS-specific source builds must be rehearsed before use.
+| Platform | Download | After extracting, open the included folder and start |
+| --- | --- | --- |
+| macOS | [Download macOS ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-macos.zip) | Double-click `Install-Hermes.command` |
+| Linux desktop | [Download Linux ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-linux.zip) | Open a terminal in the extracted folder; run `bash Install-Hermes.sh` |
+| Native Windows | [Download Windows ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-windows.zip) | Double-click `Install-Hermes.cmd`; approve Administrator PowerShell under your normal account |
+
+Extract each ZIP once. Keep its launcher and `scripts/` folder together. Downloading does not execute the installer. macOS may require Finder's Open action or `bash scripts/setup-macos-linux.sh` if download protections prevent double-click launch. [SHA-256 checksums](downloads/SHA256SUMS) are provided. [Full repository source ZIP](https://github.com/benczb/hermes-tailscale-docker/archive/refs/heads/main.zip) is also available.
+
+This is guided setup: Tailscale/provider sign-in, OS approvals, Docker first-run acceptance and possible reboots require user input. Desktop is built from source; compiler/system dependencies can be required. Automated checks are not clean-machine installation evidence.
+
+## Requirements
+
+- macOS: Apple Silicon is the upstream primary target; Intel source builds are best effort. The installer can install missing Homebrew, Docker Desktop and Tailscale; finish Xcode Command Line Tools/OS dialogs if requested.
+- Linux: 64-bit glibc desktop, systemd user services and Docker access for your user. apt-based distributions get basic dependencies; others need their prerequisites installed separately.
+- Windows without WSL2: supported x64 Windows 10/11 Pro, Enterprise or Education, hardware virtualization, Hyper-V and Docker Desktop Linux containers. Home/Server/ARM are excluded from this installer path. Reboot and rerun when Windows features are enabled.
+
+## What the workshop installer does
+
+1. Check/install prerequisites, verify Docker and run its `hello-world` test.
+2. Install Tailscale if needed, request sign-in and obtain the machine's tailnet IPv4 address.
+3. Install native Hermes and build Desktop, or reuse an existing Hermes command and build Desktop.
+4. Install a new named `workshop` profile from the bundled template and run interactive Hermes setup. Existing profiles are preserved. Terminal backend is explicitly set to Docker after setup.
+5. Ask for your dashboard username, password and confirmation. No default username. Passwords need at least 12 characters; hidden entry is the default and visible entry is optional. The session-signing secret is generated randomly.
+6. Create a user-login backend: launchd (macOS), systemd user service (Linux), Scheduled Task (Windows). It uses loopback and requires authentication through its declared Tailscale URL.
+7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Use `http://<server-tailscale-ip>:9119` from an authorized tailnet device.
+
+On macOS/Linux, an existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. Override with `HERMES_BACKEND_PORT=9120` if desired. Windows currently requires local 9119 to be available.
+
+An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Normal native workshop data lives under `~/.hermes/profiles/workshop` (macOS/Linux) or `%LOCALAPPDATA%\hermes\profiles\workshop` (Windows).
+
+Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the workshop backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running.
+
+## Reset a forgotten dashboard login
+
+Run from the extracted repository folder. Normal reruns preserve the existing login.
+
+macOS/Linux:
 
 ```bash
-git clone https://github.com/benczb/hermes-tailscale-docker.git
-cd hermes-tailscale-docker
-bash bootstrap.sh
+HERMES_RESET_DASHBOARD_AUTH=1 bash scripts/setup-macos-linux.sh
 ```
+
+Windows Administrator PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -ResetDashboardAuth
 ```
 
-Use `--home /absolute/fresh/location` (or `--directory`) on POSIX, `-Home C:\approved\hermes-workspace` on Windows. An existing target is never overwritten, including after partial failure. `--desktop` / `-Desktop` are compatibility flags; the default install already includes Desktop.
+Choose a new username and password. Resetting also rotates the session-signing secret; sign in again afterward. Profile data and model keys remain. Credentials are stored locally in the profile `.env` and protected installer `dashboard-login.txt`; these are not encrypted vaults. Never commit runtime data.
 
-## What happens
+## Workshop profile
 
-1. Read-only preflight checks the fresh target, local Docker context, signed-in Tailscale, empty Serve configuration and free loopback TCP 9119. Remote Docker contexts, existing Serve rules and WSL are refused.
-2. Explicit consent precedes the official source installer. **Upstream may install build prerequisites and edit shell PATH files; Windows upstream currently prepends the dedicated bin to User PATH.** These effects are disclosed, not claimed absent. Personal host command wrappers are not silently replaced: dedicated config sets `cli.expose_on_path: false` and project launches use an exact private executable. Use a fresh approved account/home.
-3. Create `TARGET/home` with an empty workspace, private `.env`, Docker terminal config and `gateway.standalone: true`. Explicitly mount only `TARGET/home/workspace` read-only at `/opt/hermes-workspace`; tools start there and drafts belong in `/workspace`. Automatic host-cwd mounting is disabled. Hermes may also mount standard sandbox resources; this is not an audited security boundary.
-4. Run the official installer with `--include-desktop --non-interactive --channel stable` (Windows: `-IncludeDesktop -NonInteractive -Channel stable`) under the selected `HERMES_HOME`. No interactive setup wizard can switch the Docker terminal backend. One source tree at `TARGET/home/hermes-agent` owns runtime and GUI. Stable is mutable, not an immutable runtime pin.
-5. Write persistent dedicated launch scripts **inside TARGET**, not the personal host bin. `Hermes-Desktop` (Windows: `Hermes-Desktop.ps1`) sets the dedicated `HERMES_HOME` and launches source Desktop with `--hermes-root TARGET/home/hermes-agent`. Use this instead of an unrelated installed app. `Hermes-CLI` / `Hermes-CLI.ps1` passes arguments to the exact runtime. Windows requires the official `.exe` launcher; unsafe `.cmd` fallback fails explicitly.
-6. Start a detached `dashboard --no-open --host 127.0.0.1 --port 9119` child; record `dashboard.pid` and private `dashboard.log` in TARGET. Upstream dashboard is foreground-only; there is no invented `--background` flag. This is not a reboot-persistent OS service. Health failure terminates the child.
-7. Verify anonymous denial, wrong-password denial and cookie-authenticated `/api/status` via `POST /auth/password-login`. HTTP Basic `curl -u` is not equivalent. Only then ask separately before host `tailscale serve --bg --tcp=9119 tcp://127.0.0.1:9119`; read back exact TCPForward. Never Funnel or Serve reset.
+`profiles/workshop/` contains:
 
-## Use and updates
+- `SOUL.md`: the exact **Safe Agent Starter** used by the workshop safeguards slide (originally slide 67), including approval gates, secrets handling, verification and recovery. Personalize `[YOUR NAME]`.
+- `config.yaml`: `terminal.backend: docker`, `terminal.cwd: /workspace` inside the container. This setting alone does not mount host folders.
+- `distribution.yaml`: name/version/author and distribution-owned files.
+- `.gitignore`: an authoring allowlist that excludes local credentials/runtime data.
 
-Open the generated Hermes-Desktop launcher. Configure **only the model/provider** in Desktop; do not run full `hermes setup`, which may change terminal settings. Review Docker backend before the first use. Provider authentication, a synthetic model turn and Desktop's one-click source update require live rehearsal. The same source tree is updateable by `Hermes-CLI update` and Desktop; no separate bundled application is installed.
+No personal memories, API keys, model selection, custom skills, MCP connections, messaging tokens, cron jobs or Desktop theme are bundled. Existing installed SOUL customizations are not overwritten on rerun. To use your own trusted profile repository, set `HERMES_PROFILE_SOURCE` / `HERMES_PROFILE_NAME` on Bash or `-ProfileSource` / `-ProfileName` on PowerShell.
 
-Desktop uses its native local gateway, not dashboard password login. The separate browser dashboard is `http://127.0.0.1:9119`, username `participant`, chosen password. Remote browser participants use `http://HOST-TAILNET-DNS:9119` subject to ACLs. Tailscale TCP transport is encrypted, but the URL is not browser HTTPS. Desktop remote connections are not acceptance-tested here.
-
-The dedicated home starts without a custom persona, bundled skills or example documents. Put approved input files in `TARGET/home/workspace`; tools see them read-only at `/opt/hermes-workspace`. Write drafts in `/workspace`; sandbox recreation may remove drafts. No personal tokens, sessions, memories, plugins or schedules are imported. Models may transmit prompts and incur charges; profiles do not enforce confidentiality.
-
-## Security and recovery
-
-Passwords need 16+ letters, digits or `_.!@%+=:-` only. Restricted characters and single-quoted dotenv serialization avoid interpolation/quoting surprises. Credentials remain plaintext in private `.env`; target/home are 0700 and `.env` is 0600 on POSIX. Windows NTFS ACL review is manual. Never publish TARGET.
-
-Failures preserve the new home. Inspect logs privately; choose a fresh target rather than deleting blindly. Dashboard is not an OS service and does not survive reboot by contract. Use the generated dedicated CLI for `dashboard --status` / `dashboard --stop` before manual recovery. PID files are diagnostic receipts, not permission to kill an unverified recycled PID.
-
-Before enabling Serve after recovery, rerun authentication from the repository:
+After changing authored profile files, run:
 
 ```bash
-python3 -c 'import bootstrap,getpass; bootstrap.health(getpass.getpass("Dashboard password: "))'
+python3 scripts/sync-profile-template.py
+python3 scripts/test-installers.py
+python3 scripts/package-installer.py
 ```
 
-Inspect `tailscale serve status`. Remove **only** this project's TCP rule with `tailscale serve --tcp=9119 off` if appropriate, then inspect again. Never `serve reset`. No host apps, services, accounts or dedicated data are automatically removed.
+Commit the regenerated `downloads/*.zip` and `downloads/SHA256SUMS` with installer changes; CI rejects stale packages. The workshop deck retains synchronized copies of these installers for its copy/paste setup slides. This repository is the public installer/download home. Full operating details are in [docs/installer-audit.md](docs/installer-audit.md).
 
-## Provenance and verification
+## Existing Python bootstrap
 
-Official installers: https://hermes-agent.nousresearch.com/install.sh and https://hermes-agent.nousresearch.com/install.ps1. Official docs: https://hermes-agent.nousresearch.com/docs/user-guide/desktop and https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard.
-
-Reviewed upstream main: `scripts/install.sh`, `scripts/install.ps1`, `hermes_cli/subcommands/dashboard.py`, `hermes_cli/main_desktop.py`, `hermes_cli/_launchers.py`, `tools/environments/docker.py`. Archived Desktop package receipts in `research/` and `versions.json` are historical provenance only, not packages installed by this flow.
-
-```bash
-python3 -W error::ResourceWarning -m unittest discover -s tests -v
-python3 -m py_compile bootstrap.py tests/test_bootstrap.py
-bash -n bootstrap.sh
-```
-
-Tests mock installer/Docker/Tailscale/Desktop effects; a real local HTTP fixture verifies cookies, not actual Hermes integration. CI runs Linux/macOS/Windows mocks and parses PowerShell. See `VERIFICATION.md`. No host installation, service restart, provider call or tailnet mutation was performed in development. Actual source builds, Desktop home selection/update, sandbox mounts/commands, Windows ACLs and authorised/unauthorised tailnet browser access remain mandatory rehearsal gates.
-
-The original copyright notice in `LICENSE` is retained as required by the MIT licence. Earlier Git history is preserved; this change removes the specialised content from the current version, not historical commits.
+The pre-existing `bootstrap.sh`, `bootstrap.ps1` and `bootstrap.py` remain available with their own separate behavior: a fresh dedicated home, no bundled persona, preinstalled prerequisites and explicit consent gates. They are not the workshop launcher path. See [the retained bootstrap guide](docs/bootstrap-guide.md) and [VERIFICATION.md](VERIFICATION.md). Existing bootstrap tests and provenance records are retained.
