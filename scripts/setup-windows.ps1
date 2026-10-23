@@ -40,6 +40,8 @@ function Get-WorkshopWslVersion {
     try {
         $output = (& wsl.exe --version 2>&1 | Out-String)
         if ($LASTEXITCODE -ne 0) { return $null }
+        # Some WSL/PowerShell combinations leave UTF-16 NUL separators in redirected output.
+        $output = $output.Replace([string][char]0, '')
         $match = [regex]::Match($output, '\d+\.\d+\.\d+(?:\.\d+)?')
         if ($match.Success) { return [version]$match.Value }
     } catch { }

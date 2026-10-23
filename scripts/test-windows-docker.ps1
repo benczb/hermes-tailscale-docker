@@ -22,6 +22,8 @@ function wsl.exe { $global:LASTEXITCODE=0; return $fakeWslOutput }
 if ((Get-WorkshopWslVersion) -ne [version]'2.6.1.0') { throw 'WSL parser chose the kernel version' }
 $fakeWslOutput = "WSL-Version: 3.0.3.0`nKernel-Version: 6.6.87.2"
 if ((Get-WorkshopWslVersion) -ne [version]'3.0.3.0') { throw 'Localized WSL version parsing failed' }
+$fakeWslOutput = [string]::Join([string][char]0, 'WSL version: 2.6.1.0'.ToCharArray())
+if ((Get-WorkshopWslVersion) -ne [version]'2.6.1.0') { throw 'NUL-separated WSL version parsing failed' }
 $versionAnswers = New-Object 'System.Collections.Generic.Queue[object]'
 function Get-WorkshopWslVersion { return $versionAnswers.Dequeue() }
 $updateCalls = New-Object 'System.Collections.Generic.List[object]'
