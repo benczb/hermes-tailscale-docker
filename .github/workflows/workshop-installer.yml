@@ -32,14 +32,14 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/$file", [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count) { $errors | Format-List; exit 1 }
           }
-      - name: Test dashboard username and password prompts
+      - name: Test native Windows remote-client compatibility and authentication
         shell: pwsh
         run: ./scripts/test-windows-login.ps1
-      - name: Test dashboard login in Windows PowerShell 5.1
+      - name: Test remote-client behavior in Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell
         run: ./scripts/test-windows-login.ps1
-      - name: Test inherited Windows profile selection and generated backend
+      - name: Test inherited Windows profile selection and remote Desktop launcher
         shell: pwsh
         run: ./scripts/test-windows-layout.ps1
       - name: Test layout in Windows PowerShell 5.1
