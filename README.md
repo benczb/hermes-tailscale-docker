@@ -1,6 +1,6 @@
 # Hermes + Tailscale + Docker
 
-macOS/Linux install native Hermes and source-built Desktop, with terminal commands running in Docker. Windows installs native Hermes Desktop and Tailscale, connecting to a Linux Hermes backend. Windows uses no WSL2, Hyper-V or local Docker. The Linux backend holds the workshop profile and credentials.
+Native Hermes and source-built Desktop run on your own macOS, Linux or Windows computer. Terminal tool commands use a local Docker Linux-container sandbox, with Tailscale for private remote access. **No separate Linux machine is required.** On Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. On macOS, Docker Desktop manages its own internal Linux VM.
 
 ## Direct downloads
 
@@ -20,31 +20,33 @@ This is guided setup: Tailscale/provider sign-in, OS approvals, Docker first-run
 
 - macOS: Apple Silicon is the upstream primary target; Intel source builds are best effort. The installer can install missing Homebrew, Docker Desktop and Tailscale; finish Xcode Command Line Tools/OS dialogs if requested.
 - Linux: 64-bit glibc desktop, systemd user services and Docker access for your user. apt-based distributions get basic dependencies; others need their prerequisites installed separately.
-- Windows: supported Windows 10/11 desktop editions including Home, Pro, Enterprise and Education; x64 or ARM64, native 64-bit PowerShell and winget (or manually installed Tailscale). Requires a reachable Linux Hermes backend with dashboard authentication and Docker configured. Windows Server and older Windows are outside this installer path. No Windows virtualization or Docker engine is installed.
+- Windows: supported Windows 10/11 desktop releases (build 19045 or newer), including Home, Pro, Enterprise and Education; x64 or ARM64, native 64-bit PowerShell, winget and firmware virtualization. Docker Desktop uses its internal WSL2 backend. The installer enables WSL/Virtual Machine Platform prerequisites, asks you to reboot if needed, and installs missing Docker Desktop and Tailscale. It does not enable the full Hyper-V role or require a user Linux distribution. Older Windows and Windows Server are outside this installer path; dependency support still applies.
 
-## macOS/Linux setup
+## What the installer does
 
 1. Check/install prerequisites, verify Docker and run its `hello-world` test.
 2. Install Tailscale if needed, request sign-in and obtain the machine's tailnet IPv4 address.
 3. Install native Hermes and build Desktop, or reuse an existing Hermes command and build Desktop.
 4. Install a new named `workshop` profile from the bundled template and run interactive Hermes setup. Existing profiles are preserved. Terminal backend is explicitly set to Docker after setup.
 5. Ask for your dashboard username, password and confirmation. No default username. Passwords need at least 12 characters; hidden entry is the default and visible entry is optional. The session-signing secret is generated randomly.
-6. Create a user-login backend: launchd (macOS) or systemd user service (Linux). It uses loopback and requires authentication through its declared Tailscale URL.
+6. Create a user-login backend: launchd (macOS), systemd user service (Linux), or a limited-privilege Scheduled Task (Windows). It uses loopback and requires authentication through its declared Tailscale URL.
 7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Use `http://<server-tailscale-ip>:9119` from an authorized tailnet device.
 
-On macOS/Linux, an existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. Override with `HERMES_BACKEND_PORT=9120` if desired. Windows does not open a local backend port.
+An existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. On macOS/Linux, override with `HERMES_BACKEND_PORT=9120` if desired. Windows saves its selected port in `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\backend-port`.
 
-An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Normal native workshop data lives under `~/.hermes/profiles/workshop` (macOS/Linux). Windows uses the remote Linux profile.
+An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Normal native workshop data lives under `~/.hermes/profiles/workshop` (macOS/Linux) or `%LOCALAPPDATA%\hermes\profiles\workshop` (Windows).
 
 Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the workshop backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running.
 
-## Windows setup: native Desktop, remote Linux sandbox
+## Attendees: prepare first or start with the installer?
 
-First run the Linux installer on your server. Keep its Tailscale URL and dashboard login ready. On Windows, double-click `Install-Hermes.cmd` and approve elevation using your normal account. Setup installs/signs into Tailscale, asks for the Linux URL (for example `http://100.x.y.z:9119`), checks that the remote backend requires authentication, installs native Hermes if missing and builds Desktop.
+You can start directly with the platform installer. It checks prerequisites and installs missing Docker/Tailscale where supported; you still complete OS approvals and sign-ins. For a smoother workshop, optionally install/open Docker Desktop (Linux: Docker Engine also works), confirm Docker is running and sign into Tailscale beforehand. macOS may need Homebrew and Xcode Command Line Tools. Windows may need firmware virtualization, WSL2 updates and a restart. Neither platform needs a separate Linux computer.
 
-The generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher sets `HERMES_DESKTOP_REMOTE_URL`. Reopen Desktop through this launcher to retain the remote connection. In Desktop Settings > Gateways, sign in with the Linux dashboard credentials, save/reconnect and select `workshop`. Setup checks backend reachability/authentication requirements; successful user login and a real conversation still require verification in Desktop.
+## Windows local Desktop
 
-Windows does not install a local Docker engine, configure virtualization, create a backend service, set a local password, import a local workshop profile or configure Tailscale Serve. Those belong to the Linux server. Windows needs access to that server whenever using Hermes. The packaged SOUL/config files are for the server, not a second local profile.
+Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your normal account. If asked to restart after WSL2 prerequisites are enabled, restart and run the installer again. In Docker Desktop, finish first-run setup and enable Settings > General > Use the WSL 2 based engine. The installer validates a local Docker Desktop WSL2 engine and runs hello-world; a remote Docker engine is rejected. It then installs native Hermes, the workshop profile, your dashboard login and a local backend service, and configures Tailscale TCP access.
+
+There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The Docker engine and backend must run on this PC.
 
 ## Reset a forgotten dashboard login
 
@@ -62,9 +64,7 @@ Windows Administrator PowerShell:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -ResetDashboardAuth
 ```
 
-On Windows, the reset command uses native OpenSSH to run the Linux installer on the selected backend. It asks for `linux-user@server` and defaults to `~/setup-hermes.sh` (the Bash slide's saved file). If you installed from a ZIP, pass `-RemoteInstallerPath '/home/your-user/path/to/scripts/setup-macos-linux.sh'`; optionally pass `-RemoteUrl` and `-SshTarget`. The SSH host must match the backend URL. Install Windows OpenSSH Client first if absent, or run the Bash reset directly on Linux.
-
-Choose a new username and password on the server. Resetting also rotates the session-signing secret; sign in again afterward. Profile data and model keys remain. Credentials are stored locally in the profile `.env` and protected installer `dashboard-login.txt`; these are not encrypted vaults. Never commit runtime data.
+Choose a new username and password locally. Resetting also rotates the session-signing secret; sign in again afterward. Profile data and model keys remain. Credentials are stored locally in the profile `.env` and protected installer `dashboard-login.txt`; these are not encrypted vaults. Never commit runtime data.
 
 ## Workshop profile
 
@@ -75,7 +75,7 @@ Choose a new username and password on the server. Resetting also rotates the ses
 - `distribution.yaml`: name/version/author and distribution-owned files.
 - `.gitignore`: an authoring allowlist that excludes local credentials/runtime data.
 
-No personal memories, API keys, model selection, custom skills, MCP connections, messaging tokens, cron jobs or Desktop theme are bundled. Existing installed SOUL customizations are not overwritten on rerun. To use your own trusted profile repository, set `HERMES_PROFILE_SOURCE` / `HERMES_PROFILE_NAME` on the Linux/macOS backend. Windows `-ProfileName` selects the expected remote profile; it does not create one. Apply custom profile sources on the backend, not Windows.
+No personal memories, API keys, model selection, custom skills, MCP connections, messaging tokens, cron jobs or Desktop theme are bundled. Existing installed SOUL customizations are not overwritten on rerun. To use your own trusted profile repository, set `HERMES_PROFILE_SOURCE` / `HERMES_PROFILE_NAME` on Bash or `-ProfileSource` / `-ProfileName` on Windows PowerShell.
 
 After changing authored profile files, run:
 

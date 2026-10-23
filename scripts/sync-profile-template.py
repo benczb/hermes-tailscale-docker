@@ -7,12 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def template_scripts():
     files = ['distribution.yaml', 'config.yaml', 'SOUL.md']
-    bash_lines = []
+    bash_lines, ps_lines = [], []
     for name in files:
         content = (ROOT / 'profiles/workshop' / name).read_text()
         bash_lines.append(f'    cat > "$state/template/{name}" <<\'WORKSHOP_FILE\'\n' + content.rstrip('\n') + '\nWORKSHOP_FILE')
+        literal = content.replace('`', '``').replace('$', '`$').replace('"', '`"').replace('\r', '').replace('\n', '`n')
+        ps_lines.append(f'            Save-Utf8 (Join-Path $ProfileSource \'{name}\') "{literal}"')
     result = {}
-    for filename, block in [('setup-macos-linux.sh', '\n'.join(bash_lines))]:
+    for filename, block in [('setup-macos-linux.sh', '\n'.join(bash_lines)), ('setup-windows.ps1', '\n'.join(ps_lines))]:
         path = ROOT / 'scripts' / filename
         content = path.read_text()
         pattern = r'(?m)^([ ]*)# BEGIN WORKSHOP TEMPLATE\n.*?^[ ]*# END WORKSHOP TEMPLATE'
