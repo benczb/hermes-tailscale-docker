@@ -188,16 +188,10 @@ WORKSHOP_FILE
   fi
   hermes profile install "$source_profile" --name "$profile" --yes
   touch "$state/setup-pending"
-  hermes -p "$profile" setup
-  rm "$state/setup-pending"
 else
   echo "Keeping existing profile: $profile (including credentials and model settings)."
-  if [ -f "$state/setup-pending" ]; then
-    hermes -p "$profile" setup
-    rm "$state/setup-pending"
-  fi
 fi
-# Apply after setup so its terminal choice cannot silently switch back to host execution.
+# Configure the sandbox before starting the backend; the optional wizard runs last.
 hermes -p "$profile" config set terminal.backend docker
 # An explicit external origin engages Hermes auth even behind a loopback TCP proxy.
 hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
@@ -299,3 +293,33 @@ echo "Dashboard login: $state/dashboard-login.txt"
 echo "Open Desktop with: env -u HERMES_HOME hermes -p $profile desktop"
 echo 'Backend starts at user login. Linux: enable lingering if it must run while logged out.'
 echo 'Verify from another tailnet device; this installer cannot prove remote ACL access.'
+
+cat > "$state/installation-ready.txt" <<READY
+INSTALLATION CHECKS COMPLETE (model/provider setup is separate)
+Docker: hello-world passed
+Tailscale: connected ($tail_ip)
+Hermes Desktop: build completed
+Local backend: authenticated status check passed on 127.0.0.1:$backend_port
+Tailscale TCP 9119: forwarding configured to 127.0.0.1:$backend_port
+Tailnet URL: http://$tail_ip:9119
+Remote-device access and a real conversation still need verification.
+READY
+cat "$state/installation-ready.txt"
+if [ -f "$state/setup-pending" ]; then
+  if [ "${HERMES_SKIP_PROFILE_SETUP:-0}" = 1 ]; then
+    echo 'Deferring profile/model setup. Configure a provider in Desktop when ready.'
+    rm "$state/setup-pending"
+  else
+    echo 'Running profile setup LAST. Desktop and the local backend are already installed.'
+    # Confine wizard cancellation to a child shell and restore sandbox settings on exit.
+    (
+      restore_profile_settings() {
+        hermes -p "$profile" config set terminal.backend docker
+        hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
+      }
+      trap restore_profile_settings EXIT
+      hermes -p "$profile" setup
+    )
+    rm "$state/setup-pending"
+  fi
+fi

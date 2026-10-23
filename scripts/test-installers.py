@@ -75,7 +75,7 @@ class Installers(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX shell execution; Windows AST checked separately')
     def test_mock_install_rerun_and_failure_paths(self):
         for platform in ('Linux', 'Darwin'):
-            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy'):
+            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile'):
                 with self.subTest(platform=platform, failure=failure), tempfile.TemporaryDirectory() as tmp:
                     fixture = Path(tmp)
                     # Child-process fixture home only; never touches the real user's home.
@@ -105,6 +105,9 @@ class Installers(unittest.TestCase):
                     env.pop('HERMES_INSTALLER_BASE_URL', None)
                     env.pop('HERMES_RESET_DASHBOARD_AUTH', None)
                     env.pop('HERMES_BACKEND_PORT', None)
+                    env.pop('HERMES_SKIP_PROFILE_SETUP', None)
+                    if failure == 'skip-profile':
+                        env['HERMES_SKIP_PROFILE_SETUP'] = '1'
                     if failure == 'explicit-busy':
                         env['HERMES_BACKEND_PORT'] = '9119'
                     chosen_password = "Fixture $ # ' \\ password!"
@@ -121,6 +124,15 @@ class Installers(unittest.TestCase):
                         continue
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn(forward, calls)
+                    wizard = ['hermes', '-p', 'workshop', 'setup']
+                    if failure == 'skip-profile':
+                        self.assertNotIn(wizard, calls)
+                    else:
+                        self.assertGreater(calls.index(wizard), calls.index(forward))
+                        self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', 'workshop', 'desktop', '--build-only']))
+                    ready_state = user_home / '.hermes-workshop-installer/workshop/installation-ready.txt'
+                    self.assertIn('INSTALLATION CHECKS COMPLETE', ready_state.read_text())
+
                     self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'terminal.backend', 'docker'], calls)
                     self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:9119'], calls)
                     credentials = user_home / '.hermes-workshop-installer/workshop/dashboard-login.txt'

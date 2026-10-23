@@ -18,7 +18,7 @@ An inherited HERMES_HOME is cleared only in installer/generated launcher process
 
 ## Local backend on each platform
 
-Setup verifies Docker Linux containers with hello-world, installs/signs into Tailscale, installs Hermes if absent and builds Desktop. It installs a missing named workshop profile and runs interactive setup, preserving an existing profile and model keys. It explicitly sets terminal.backend to docker and configures dashboard.public_url using the server Tailscale IPv4 and port 9119.
+Setup verifies Docker Linux containers with hello-world, installs/signs into Tailscale, installs Hermes if absent and builds Desktop. It installs missing named profile files early, preserving an existing profile and model keys. The interactive wizard runs only after Desktop/backend/forwarding readiness. It explicitly sets terminal.backend to docker and configures dashboard.public_url using the server Tailscale IPv4 and port 9119.
 
 On first configuration, choose a username (no preset admin), hidden or visible password entry (hidden default), a password of at least 12 characters, and confirmation. Only the session-signing secret is randomly generated. Credentials are stored in the profile .env and protected installer dashboard-login.txt, not encrypted vaults or GitHub. Normal reruns preserve the login.
 
@@ -32,9 +32,9 @@ The installer accepts Home and other supported Windows 10/11 desktop editions; i
 
 Missing Docker Desktop is installed with --backend=wsl-2; missing Tailscale is installed through winget. Complete Docker first-run dialogs, and use Settings > General > Use the WSL 2 based engine. Existing Docker settings are checked, not overwritten live. The engine must report Linux containers, Docker Desktop, a WSL2 kernel and a local named-pipe context. Docker hello-world verifies basic execution before Hermes is configured. A real agent terminal call is still needed to verify the entire sandbox integration.
 
-The installer signs into Tailscale, installs native Hermes if absent, installs a missing local named workshop profile, runs interactive setup, sets terminal.backend to docker, configures dashboard public URL/login and builds Desktop. Existing profile/SOUL/model settings and normal-rerun login are preserved. User/SYSTEM ACLs protect installer state. Inherited HERMES_HOME and HERMES_DESKTOP_REMOTE_URL are cleared for workshop processes only; saved user settings remain. Old remote-url.txt state is ignored.
+The installer signs into Tailscale, installs native Hermes if absent, installs missing local named profile files, sets terminal.backend to docker, configures dashboard public URL/login and builds Desktop. Existing profile/SOUL/model settings and normal-rerun login are preserved. User/SYSTEM ACLs protect installer state. Inherited HERMES_HOME and HERMES_DESKTOP_REMOTE_URL are cleared for workshop processes only; saved user settings remain. Old remote-url.txt state is ignored.
 
-A limited-privilege Scheduled Task launches an isolated local loopback backend at user login. Readiness must report authentication required before Tailscale forwarding is enabled. Open-Hermes-Desktop.ps1 in the installer state selects the local workshop profile and clears inherited remote URL/home selectors. It is launched when setup completes and can be reused later. No SSH server or separate Linux host is involved.
+A limited-privilege Scheduled Task launches an isolated local loopback backend at user login. Readiness must report authentication required before Tailscale forwarding is enabled. Open-Hermes-Desktop.ps1 in the installer state selects the local workshop profile and clears inherited remote URL/home selectors. It is launched after backend/forwarding readiness and can be reused later. The pending profile/model wizard opens last in a separate PowerShell window. No SSH server or separate Linux host is involved.
 
 ## Workshop preparation
 
@@ -88,6 +88,10 @@ Remove just this forwarding with tailscale serve --tcp=9119 off on the server. A
 
 Packages are deterministic: regenerate with python3 scripts/package-installer.py; --check rejects stale ZIPs/checksums. Desktop remote URL behavior follows upstream docs: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/desktop.md. Tailscale TCP reference: https://tailscale.com/docs/reference/tailscale-cli/serve.
 
-## Resuming an interrupted Windows profile wizard
+## Profile wizard last and installation completion
 
-Use -SkipProfileSetup on setup-windows.ps1 to explicitly defer a pending model/provider setup wizard and continue Desktop/auth/backend setup. Failed wizard calls preserve setup-pending; a successful wizard or explicit deferral clears it. Existing completed profiles do not rerun the wizard. This does not configure a provider or promise chat/model readiness; configure one afterward using Desktop or hermes -p workshop model. Tailscale is checked before profile setup and skips sign-in when already connected. Desktop builds after the dashboard-login step; the installer's final Ready URL and Desktop launcher message distinguish app completion from the upstream wizard's separate Setup Complete message.
+All platform installers create profile files early, then configure dashboard credentials, build Desktop, start the isolated local backend, verify its auth gate and configure Tailscale TCP 9119 before interactive profile setup. They print/save installation-ready.txt with each infrastructure result. Model sign-in, real Desktop authentication and remote-device access remain separate checks.
+
+Windows launches Desktop and opens Configure-Hermes-Profile.ps1 in a separate PowerShell window as its last step. Cancelling that window does not interrupt the completed app/backend installer. Failed/interrupted wizard calls retain setup-pending; successful completion or explicit -SkipProfileSetup deferral clears it. A finally block reapplies the Docker terminal backend and declared dashboard URL after wizard changes. The generated launcher can reopen the wizard later.
+
+macOS/Linux run the wizard in a child shell after printing/saving readiness; its exit cleanup restores the sandbox and public URL. Set HERMES_SKIP_PROFILE_SETUP=1 to explicitly defer it. Existing completed profiles are preserved. Configure a model/provider afterward in Desktop or with hermes -p workshop model if deferred; app/backend readiness does not imply chat readiness. Existing Tailscale sign-ins are reused and Desktop builds automatically rather than asking for a separate install confirmation.

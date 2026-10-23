@@ -27,10 +27,11 @@ This is guided setup: Tailscale/provider sign-in, OS approvals, Docker first-run
 1. Check/install prerequisites, verify Docker and run its `hello-world` test.
 2. Install Tailscale if needed, request sign-in and obtain the machine's tailnet IPv4 address.
 3. Install native Hermes and build Desktop, or reuse an existing Hermes command and build Desktop.
-4. Install a new named `workshop` profile from the bundled template and run interactive Hermes setup. Existing profiles are preserved. Terminal backend is explicitly set to Docker after setup.
+4. Install a missing named profile from the bundled template, including your preconfigured SOUL.md. Preserve existing profiles. Configure Docker before starting services; the interactive profile/model wizard runs last.
 5. Ask for your dashboard username, password and confirmation. No default username. Passwords need at least 12 characters; hidden entry is the default and visible entry is optional. The session-signing secret is generated randomly.
 6. Create a user-login backend: launchd (macOS), systemd user service (Linux), or a limited-privilege Scheduled Task (Windows). It uses loopback and requires authentication through its declared Tailscale URL.
-7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Use `http://<server-tailscale-ip>:9119` from an authorized tailnet device.
+7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Save and print `installation-ready.txt` with separate Docker, Tailscale, Desktop, backend and forwarding results.
+8. Run interactive profile/model setup **last** if pending. Windows opens it in a separate PowerShell window; macOS/Linux run it after the readiness summary. Verify the actual Desktop login, model and remote access afterward.
 
 An existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. On macOS/Linux, override with `HERMES_BACKEND_PORT=9120` if desired. Windows saves its selected port in `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\backend-port`.
 
@@ -48,15 +49,21 @@ Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your n
 
 There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The Docker engine and backend must run on this PC.
 
-## Resume after the Hermes model/provider wizard
+## Profile/model setup runs last
 
-If setup returns to PowerShell after the Hermes wizard and has not shown the dashboard-login prompts, Desktop build or final Ready URL, download/extract the current Windows ZIP and run this in Administrator PowerShell from its included folder:
+Download/extract the current package and use its launcher. The installer now completes Docker/Tailscale checks, the native Hermes/profile files, dashboard credentials, Desktop build, backend readiness and TCP forwarding before opening the interactive profile/model wizard. Creating the profile files early is required for the backend; this is separate from the interactive wizard.
+
+Look for **INSTALLATION CHECKS COMPLETE** and `installation-ready.txt` in the installer state folder. It reports exactly what was checked: Docker hello-world, Tailscale connection/IP, Desktop build, the local backend auth gate and configured TCP 9119 forwarding. It does not prove a real model conversation or access from another tailnet device.
+
+Windows opens Desktop, prints/saves readiness and then opens the pending profile wizard in a separate PowerShell window. Close/defer that wizard if you prefer to configure a model in Desktop later. Reopen it through `Configure-Hermes-Profile.ps1` in the same state folder. On macOS/Linux, the wizard runs in the terminal after the same infrastructure summary. Successful/failed wizard cleanup restores the Docker terminal backend and declared dashboard URL.
+
+To explicitly defer a pending wizard when rerunning Windows:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -SkipProfileSetup
 ```
 
-This explicitly defers the pending model/provider wizard and continues Desktop, dashboard credentials, backend and Tailscale forwarding setup. It preserves your existing profile and model keys. Configure a model afterward in Desktop or with `hermes -p workshop model`; without a provider Hermes cannot chat yet. Tailscale is checked before the wizard; an already signed-in installation will not prompt again. Desktop is built automatically, rather than asking for a separate installation approval. The Hermes wizard's own “Setup Complete” message does not mean the surrounding installer has completed; look for its final Ready URL and Desktop launcher path.
+macOS/Linux can use `HERMES_SKIP_PROFILE_SETUP=1 bash scripts/setup-macos-linux.sh`. Deferral preserves the installed profile and keys. Configure a model in Desktop or with `hermes -p workshop model`; without a provider Hermes cannot chat. On Windows the profile wizard's own “Setup Complete” message is separate from the earlier installer readiness summary.
 
 ## Reset a forgotten dashboard login
 

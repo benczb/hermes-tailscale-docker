@@ -14,18 +14,41 @@ function Invoke-Checked {
     if ($LASTEXITCODE -ne 0) { throw "$File failed (exit $LASTEXITCODE). Fix the error and rerun." }
 }
 function Complete-WorkshopProfileSetup {
-    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [switch]$Skip)
+    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [switch]$Skip, [string]$PublicUrl = '')
     $pending = Join-Path $StateDirectory 'setup-pending'
     if (-not (Test-Path $pending)) { return }
     if ($Skip) {
-        Write-Host 'Deferring the interactive model/provider wizard. Continuing with Desktop, dashboard login and local backend setup.'
+        Write-Host 'Deferring the interactive model/provider wizard. Desktop and backend installation checks have already completed.'
         Write-Host "Configure a provider later in Desktop or with: hermes -p $SelectedProfile model"
     } else {
-        Write-Host 'Running the Hermes profile wizard. If interrupted, rerun this installer with -SkipProfileSetup to finish app setup and configure your model later.'
-        Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'setup')
+        Write-Host 'Running profile setup LAST. Desktop and the local authenticated backend are already installed. Closing this window does not remove them.'
+        try { Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'setup') }
+        finally {
+            # The full wizard can change its terminal choice; retain the promised sandbox.
+            Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'terminal.backend', 'docker')
+            if ($PublicUrl) { Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'dashboard.public_url', $PublicUrl) }
+        }
     }
     # Keep the marker if the wizard fails; clear it only after success or explicit deferral.
     Remove-Item -LiteralPath $pending
+}
+function Start-WorkshopProfileSetup {
+    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [string]$PublicUrl, [switch]$Skip)
+    if (-not (Test-Path (Join-Path $StateDirectory 'setup-pending'))) { return }
+    if ($Skip) {
+        Complete-WorkshopProfileSetup $HermesCommand $SelectedProfile $StateDirectory -Skip
+        return
+    }
+    $launcher = Join-Path $StateDirectory 'Configure-Hermes-Profile.ps1'
+    $code = "Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue`r`nRemove-Item Env:HERMES_DESKTOP_REMOTE_URL -ErrorAction SilentlyContinue`r`n`$env:PATH = '$($env:PATH.Replace("'", "''"))'`r`n"
+    foreach ($name in @('Invoke-Checked', 'Complete-WorkshopProfileSetup')) {
+        $code += "function $name {`r`n" + (Get-Command $name).Definition + "`r`n}`r`n"
+    }
+    $code += "Complete-WorkshopProfileSetup -HermesCommand '$($HermesCommand.Replace("'", "''"))' -SelectedProfile '$SelectedProfile' -StateDirectory '$($StateDirectory.Replace("'", "''"))' -PublicUrl '$($PublicUrl.Replace("'", "''"))'`r`n"
+    Save-Utf8 $launcher $code
+    Write-Host 'Opening the optional profile wizard LAST in a separate PowerShell window. App installation is already complete.'
+    Write-Host "You can reopen it later with: $launcher"
+    Start-Process powershell.exe -ArgumentList ('-NoExit -NoProfile -ExecutionPolicy Bypass -File "' + $launcher + '"')
 }
 function New-HexSecret {
     param([int]$Length)
@@ -203,7 +226,6 @@ try {
         Write-Host "Keeping existing profile: $ProfileName"
 
     }
-    Complete-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -Skip:$SkipProfileSetup
     Write-Host 'Configuring the local Docker terminal backend and dashboard login.'
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.backend', 'docker')
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'dashboard.public_url', "http://${tailIp}:9119")
@@ -286,6 +308,10 @@ try {
     Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
     Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
+    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nDocker: hello-world passed`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
+    Save-Utf8 (Join-Path $state 'installation-ready.txt') $readiness
+    Write-Host $readiness
+    Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:9119" -Skip:$SkipProfileSetup
 } catch {
     Write-Error "Setup stopped: $($_.Exception.Message)" -ErrorAction Continue
     exit 1
