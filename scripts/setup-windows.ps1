@@ -37,12 +37,22 @@ try {
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'Open PowerShell with Run as Administrator, using your normal Windows account, then rerun.'
     }
-    # Docker Desktop Hyper-V Linux containers are not available on Windows Home/ARM.
+    # Diagnose the actual edition before enabling features or installing packages.
     $os = Get-CimInstance Win32_OperatingSystem
-    if ($os.ProductType -ne 1 -or $os.Caption -notmatch 'Windows (10|11)' -or $os.Caption -match 'Home') {
-        throw 'Without WSL2, Docker requires supported Windows 10/11 Pro, Enterprise or Education with Hyper-V. Windows Home/Server is not supported by this installer.'
+    $detectedWindows = "$($os.Caption); version $($os.Version); ProductType $($os.ProductType); process architecture $env:PROCESSOR_ARCHITECTURE"
+    Write-Host "Detected Windows: $detectedWindows"
+    if ($os.ProductType -ne 1) {
+        throw "Detected $detectedWindows. This Docker Desktop installer requires a supported Windows 10/11 desktop edition; Windows Server/domain-controller editions are not supported."
     }
-    if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'This no-WSL2 Docker Desktop path requires x64 Windows and 64-bit PowerShell.' }
+    if ($os.Caption -notmatch 'Windows (10|11)') {
+        throw "Detected $detectedWindows. Expected Windows 10 or 11. If this is a supported edition, report the detected values so the edition check can be corrected."
+    }
+    if ($os.Caption -match 'Home') {
+        throw "Detected $detectedWindows. Windows Home cannot use this installer's no-WSL2 Docker Desktop Hyper-V path. Use supported Windows Pro, Enterprise or Education, or explicitly choose a different sandbox/WSL2 approach. Native Hermes itself does not require WSL2."
+    }
+    if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
+        throw "Detected $detectedWindows. This no-WSL2 Docker Desktop path requires x64 Windows and 64-bit PowerShell."
+    }
     $hyperv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
     if ($hyperv.State -ne 'Enabled') {
         Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart | Out-Null
