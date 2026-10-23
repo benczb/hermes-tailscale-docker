@@ -75,7 +75,7 @@ class Installers(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX shell execution; Windows AST checked separately')
     def test_mock_install_rerun_and_failure_paths(self):
         for platform in ('Linux', 'Darwin'):
-            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile'):
+            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile', 'custom-profile', 'explicit-profile'):
                 with self.subTest(platform=platform, failure=failure), tempfile.TemporaryDirectory() as tmp:
                     fixture = Path(tmp)
                     # Child-process fixture home only; never touches the real user's home.
@@ -110,10 +110,15 @@ class Installers(unittest.TestCase):
                         env['HERMES_SKIP_PROFILE_SETUP'] = '1'
                     if failure == 'explicit-busy':
                         env['HERMES_BACKEND_PORT'] = '9119'
+                    selected_profile = 'Hamburger_01' if failure == 'custom-profile' else ('personal' if failure == 'explicit-profile' else 'workshop')
+                    if failure == 'explicit-profile':
+                        env['HERMES_PROFILE_NAME'] = selected_profile
                     chosen_password = "Fixture $ # ' \\ password!"
                     # Blank username, short password and confirmation mismatch must reprompt.
                     visibility = 'y' if failure == 'custom-home' else ''
                     answers = '\nben-workshop\n' + visibility + '\nshort\n' + chosen_password + '\nmismatch\n' + chosen_password + '\n' + chosen_password + '\n'
+                    profile_answers = 'bad/name\nCON\nDefault\n' + selected_profile + '\n' if failure == 'custom-profile' else ('' if failure == 'explicit-profile' else '\n')
+                    answers = profile_answers + answers
                     result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input=answers, capture_output=True, text=True, timeout=30)
                     calls = [json.loads(line) for line in log.read_text().splitlines()]
                     local_port = '9120' if failure == 'occupied-port' else '9119'
@@ -124,40 +129,46 @@ class Installers(unittest.TestCase):
                         continue
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn(forward, calls)
-                    wizard = ['hermes', '-p', 'workshop', 'setup']
+                    wizard = ['hermes', '-p', selected_profile, 'setup']
                     if failure == 'skip-profile':
                         self.assertNotIn(wizard, calls)
                     else:
                         self.assertGreater(calls.index(wizard), calls.index(forward))
-                        self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', 'workshop', 'desktop', '--build-only']))
-                    ready_state = user_home / '.hermes-workshop-installer/workshop/installation-ready.txt'
+                        self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', selected_profile, 'desktop', '--build-only']))
+                    ready_state = user_home / '.hermes-workshop-installer' / selected_profile / 'installation-ready.txt'
                     self.assertIn('INSTALLATION CHECKS COMPLETE', ready_state.read_text())
 
-                    self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'terminal.backend', 'docker'], calls)
-                    self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:9119'], calls)
-                    credentials = user_home / '.hermes-workshop-installer/workshop/dashboard-login.txt'
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'terminal.backend', 'docker'], calls)
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:9119'], calls)
+                    credentials = user_home / '.hermes-workshop-installer' / selected_profile / 'dashboard-login.txt'
                     if failure == 'fresh-install':
                         self.assertTrue((user_home / '.hermes').is_dir())
                         self.assertTrue(any(c[0] == 'curl' and any('hermes-agent/' in arg and arg.endswith('/scripts/install.sh') for arg in c) for c in calls))
-                    self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'HERMES_DASHBOARD_BASIC_AUTH_USERNAME', 'ben-workshop'], calls)
-                    self.assertIn(['hermes', '-p', 'workshop', 'config', 'set', 'HERMES_DASHBOARD_BASIC_AUTH_PASSWORD', chosen_password], calls)
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'HERMES_DASHBOARD_BASIC_AUTH_USERNAME', 'ben-workshop'], calls)
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'HERMES_DASHBOARD_BASIC_AUTH_PASSWORD', chosen_password], calls)
                     self.assertNotIn(chosen_password, result.stdout + result.stderr)
                     old_credentials = credentials.read_text()
                     self.assertIn('Username: ben-workshop', old_credentials)
                     self.assertEqual(credentials.stat().st_mode & 0o777, 0o600)
-                    result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input='', capture_output=True, text=True, timeout=30)
+                    custom_soul = user_home / '.hermes/profiles' / selected_profile / 'SOUL.md'
+                    custom_soul.write_text('Keep the user customization.')
+                    result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input='' if failure == 'explicit-profile' else '\n', capture_output=True, text=True, timeout=30)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertEqual(credentials.read_text(), old_credentials)
+                    self.assertEqual(custom_soul.read_text(), 'Keep the user customization.')
+                    self.assertEqual((user_home / '.hermes-workshop-installer/_bootstrap/last-profile').read_text().strip(), selected_profile)
+                    if failure in ('custom-profile', 'explicit-profile'):
+                        self.assertFalse((user_home / '.hermes/profiles/workshop').exists())
                     if platform == 'Linux' and failure == '':
                         reset_env = dict(env, HERMES_RESET_DASHBOARD_AUTH='1')
-                        reset_answers = 'new-user\ny\n' + chosen_password + '\n' + chosen_password + '\n'
+                        reset_answers = '\nnew-user\ny\n' + chosen_password + '\n' + chosen_password + '\n'
                         reset = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=reset_env, input=reset_answers, capture_output=True, text=True, timeout=30)
                         self.assertEqual(reset.returncode, 0, reset.stdout + reset.stderr)
                         self.assertIn('Username: new-user', credentials.read_text())
 
                     calls = [json.loads(line) for line in log.read_text().splitlines()]
                     self.assertEqual(sum(c[:3] == ['hermes', 'profile', 'install'] for c in calls), 1)
-                    backend = user_home / '.hermes-workshop-installer/workshop/backend.sh'
+                    backend = user_home / '.hermes-workshop-installer' / selected_profile / 'backend.sh'
                     subprocess.run(['/bin/bash', '-n', str(backend)], check=True)
                     self.assertIn('serve --isolated --host 127.0.0.1 --port ' + local_port, backend.read_text())
                     self.assertEqual((backend.parent / 'backend-port').read_text().strip(), local_port)
@@ -170,7 +181,7 @@ class Installers(unittest.TestCase):
                     self.assertFalse((custom_home / 'profiles').exists())
                     if platform == 'Darwin':
                         import plistlib
-                        plist = user_home / 'Library/LaunchAgents/com.hermes.workshop.workshop.plist'
+                        plist = user_home / 'Library/LaunchAgents' / ('com.hermes.workshop.' + selected_profile + '.plist')
                         self.assertEqual(plistlib.loads(plist.read_bytes())['ProgramArguments'][1], str(backend))
 
 if __name__ == '__main__':

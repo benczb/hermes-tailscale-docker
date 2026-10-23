@@ -16,8 +16,17 @@ case "$(uname -s)" in
   *) fail 'Supported: macOS/Linux Bash or native Windows PowerShell.' ;;
 esac
 case "$(uname -m)" in arm64|aarch64|x86_64) ;; *) fail 'Requires a 64-bit ARM or x86 machine.' ;; esac
-profile=${HERMES_PROFILE_NAME:-workshop}
-case "$profile" in ''|default|*[!a-zA-Z0-9_-]*) fail 'Use a named profile with letters, digits, _ or -.' ;; esac
+valid_profile_name() {
+  [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$ ]] || return 1
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    default|con|prn|aux|nul|com[1-9]|lpt[1-9]) return 1 ;;
+  esac
+  return 0
+}
+profile=${HERMES_PROFILE_NAME:-}
+if [ -n "$profile" ]; then
+  valid_profile_name "$profile" || fail 'Use 1–64 letters/digits, _ or -, starting with a letter/digit; default and reserved device names are not allowed.'
+fi
 # Optional: a trusted, separate profile distribution Git repository or local directory.
 source_profile=${HERMES_PROFILE_SOURCE:-}
 export PATH="$HOME/.local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -26,35 +35,8 @@ if [ "${HERMES_HOME+x}" = x ]; then
   echo 'Using the standard native Hermes layout for this installer; your saved HERMES_HOME setting is unchanged.'
   unset HERMES_HOME
 fi
-state="$HOME/.hermes-workshop-installer/$profile"
+state="$HOME/.hermes-workshop-installer/_bootstrap"
 mkdir -p "$state"
-# Keep an existing dashboard/container running; choose a separate local port if needed.
-backend_port=${HERMES_BACKEND_PORT:-}
-if [ -z "$backend_port" ] && [ -f "$state/backend-port" ]; then
-  IFS= read -r backend_port < "$state/backend-port"
-fi
-backend_port=${backend_port:-9119}
-[[ "$backend_port" =~ ^[0-9]{1,5}$ ]] || fail 'HERMES_BACKEND_PORT must be a numeric TCP port.'
-backend_port=$((10#$backend_port))
-[ "$backend_port" -ge 1024 ] && [ "$backend_port" -le 65535 ] || fail 'Choose a local backend port from 1024 to 65535.'
-port_busy() {
-  local connected_port
-  connected_port=$(curl --silent --max-time 2 --output /dev/null --write-out '%{remote_port}' "http://127.0.0.1:$1" 2>/dev/null || true)
-  [ "${connected_port:-0}" != 0 ]
-}
-if [ ! -f "$state/backend.sh" ] && port_busy "$backend_port"; then
-  if [ -n "${HERMES_BACKEND_PORT:-}" ]; then
-    fail "Requested local port $backend_port is in use. Choose another HERMES_BACKEND_PORT."
-  fi
-  echo "Local port $backend_port is already in use; leaving that service running."
-  backend_port=9120
-  while port_busy "$backend_port"; do
-    backend_port=$((backend_port + 1))
-    [ "$backend_port" -le 9139 ] || fail 'No free local port from 9120 to 9139. Set HERMES_BACKEND_PORT to a free port.'
-  done
-fi
-printf '%s\n' "$backend_port" > "$state/backend-port"
-echo "Workshop backend: 127.0.0.1:$backend_port; Tailscale access remains on TCP 9119."
 
 
 if [ "$platform" = macos ]; then
@@ -121,6 +103,52 @@ if ! command -v hermes >/dev/null; then
 fi
 command -v hermes >/dev/null || fail 'Hermes launcher missing after install; open a new terminal and rerun.'
 hermes_bin=$(command -v hermes)
+# Choose the profile just before creating its files and asking for dashboard credentials.
+selection_file="$state/last-profile"
+if [ -z "$profile" ]; then
+  default_profile=workshop
+  if [ -f "$selection_file" ]; then
+    saved_profile=$(cat "$selection_file")
+    if valid_profile_name "$saved_profile"; then default_profile=$saved_profile; fi
+  fi
+  while :; do
+    read -r -p "Hermes profile name [$default_profile]: " chosen_profile || fail 'Profile name input cancelled.'
+    chosen_profile=${chosen_profile:-$default_profile}
+    if valid_profile_name "$chosen_profile"; then profile=$chosen_profile; break; fi
+    echo 'Use 1–64 letters/digits, _ or -, starting with a letter/digit. Do not use default or Windows device names (CON, NUL, etc.).'
+  done
+fi
+printf '%s\n' "$profile" > "$selection_file"
+echo "Using Hermes profile: $profile (existing profile data is preserved)."
+state="$HOME/.hermes-workshop-installer/$profile"
+mkdir -p "$state"
+# Keep an existing dashboard/container running; choose a separate local port if needed.
+backend_port=${HERMES_BACKEND_PORT:-}
+if [ -z "$backend_port" ] && [ -f "$state/backend-port" ]; then
+  IFS= read -r backend_port < "$state/backend-port"
+fi
+backend_port=${backend_port:-9119}
+[[ "$backend_port" =~ ^[0-9]{1,5}$ ]] || fail 'HERMES_BACKEND_PORT must be a numeric TCP port.'
+backend_port=$((10#$backend_port))
+[ "$backend_port" -ge 1024 ] && [ "$backend_port" -le 65535 ] || fail 'Choose a local backend port from 1024 to 65535.'
+port_busy() {
+  local connected_port
+  connected_port=$(curl --silent --max-time 2 --output /dev/null --write-out '%{remote_port}' "http://127.0.0.1:$1" 2>/dev/null || true)
+  [ "${connected_port:-0}" != 0 ]
+}
+if [ ! -f "$state/backend.sh" ] && port_busy "$backend_port"; then
+  if [ -n "${HERMES_BACKEND_PORT:-}" ]; then
+    fail "Requested local port $backend_port is in use. Choose another HERMES_BACKEND_PORT."
+  fi
+  echo "Local port $backend_port is already in use; leaving that service running."
+  backend_port=9120
+  while port_busy "$backend_port"; do
+    backend_port=$((backend_port + 1))
+    [ "$backend_port" -le 9139 ] || fail 'No free local port from 9120 to 9139. Set HERMES_BACKEND_PORT to a free port.'
+  done
+fi
+printf '%s\n' "$backend_port" > "$state/backend-port"
+echo "Local backend: 127.0.0.1:$backend_port; Tailscale access remains on TCP 9119."
 profile_home="$HOME/.hermes/profiles/$profile"
 if [ ! -e "$profile_home" ]; then
   if [ -z "$source_profile" ]; then
@@ -296,6 +324,7 @@ echo 'Verify from another tailnet device; this installer cannot prove remote ACL
 
 cat > "$state/installation-ready.txt" <<READY
 INSTALLATION CHECKS COMPLETE (model/provider setup is separate)
+Profile: $profile
 Docker: hello-world passed
 Tailscale: connected ($tail_ip)
 Hermes Desktop: build completed

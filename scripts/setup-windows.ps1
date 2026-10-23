@@ -1,7 +1,7 @@
 # Native Windows PowerShell 5.1+. Docker Desktop uses WSL2 internally; no separate Linux host.
 [CmdletBinding()]
 param(
-    [string]$ProfileName = 'workshop',
+    [string]$ProfileName = '',
     [string]$ProfileSource = '',
     [switch]$ResetDashboardAuth,
     [switch]$SkipProfileSetup
@@ -61,6 +61,32 @@ function Save-Utf8 {
     param([string]$Path, [string]$Text)
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
 }
+function Test-WorkshopProfileName {
+    param([string]$Name)
+    if ($Name -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$') { return $false }
+    return $Name.ToLowerInvariant() -notmatch '^(default|con|prn|aux|nul|com[1-9]|lpt[1-9])$'
+}
+function Select-WorkshopProfileName {
+    param([string]$RequestedName, [string]$SelectionFile)
+    $selected = $RequestedName.Trim()
+    if ($selected) {
+        if (-not (Test-WorkshopProfileName $selected)) { throw 'Use 1–64 letters/digits, _ or -, starting with a letter/digit; default and reserved device names are not allowed.' }
+    } else {
+        $defaultName = 'workshop'
+        if (Test-Path $SelectionFile) {
+            $savedName = (Get-Content $SelectionFile -Raw).Trim()
+            if (Test-WorkshopProfileName $savedName) { $defaultName = $savedName }
+        }
+        do {
+            $selected = ([string](Read-Host "Hermes profile name [$defaultName]")).Trim()
+            if (-not $selected) { $selected = $defaultName }
+            $valid = Test-WorkshopProfileName $selected
+            if (-not $valid) { Write-Host 'Use 1–64 letters/digits, _ or -, starting with a letter/digit. Do not use default or Windows device names (CON, NUL, etc.).' }
+        } while (-not $valid)
+    }
+    Save-Utf8 $SelectionFile $selected
+    return $selected
+}
 function Assert-WorkshopWindowsHost {
     param([string]$Caption, [string]$Version, [int]$ProductType, [string]$Architecture)
     Write-Host "Detected Windows: $Caption; version $Version; ProductType $ProductType; architecture $Architecture"
@@ -118,7 +144,8 @@ function Get-WorkshopBackendPort {
 }
 try {
     if ($env:OS -ne 'Windows_NT') { throw 'Run this in native Windows PowerShell.' }
-    if ($ProfileName -notmatch '^[a-zA-Z0-9_-]+$' -or $ProfileName -eq 'default') { throw 'Choose a named profile using letters, digits, _ or -.' }
+    $ProfileName = $ProfileName.Trim()
+    if ($ProfileName -and -not (Test-WorkshopProfileName $ProfileName)) { throw 'Invalid profile name. Use 1–64 letters/digits, _ or -, starting with a letter/digit; no default or device names.' }
     # Scope the workshop to the native layout without changing saved User/Machine settings.
     # Inherited HERMES_HOME often belongs to an existing profile or another installation.
     if ($env:HERMES_HOME) {
@@ -145,9 +172,8 @@ try {
     if ($featuresChanged) { throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.' }
     Ensure-WorkshopWsl
     Invoke-Checked wsl.exe @('--set-default-version', '2')
-    $state = Join-Path $env:LOCALAPPDATA "HermesWorkshopInstaller\$ProfileName"
+    $state = Join-Path $env:LOCALAPPDATA 'HermesWorkshopInstaller\_bootstrap'
     New-Item -ItemType Directory -Force -Path $state | Out-Null
-    $backendPort = Get-WorkshopBackendPort $state
     # Restrict installer state, including the saved login, to this user and SYSTEM.
     $acl = New-Object Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
@@ -208,6 +234,13 @@ try {
     }
     $hermes = (Get-Command hermes -ErrorAction Stop).Source
     Write-Host "Using native Hermes CLI: $hermes"
+    # Select the name immediately before profile creation and dashboard credentials.
+    $ProfileName = Select-WorkshopProfileName -RequestedName $ProfileName -SelectionFile (Join-Path $state 'last-profile')
+    Write-Host "Using Hermes profile: $ProfileName (existing profile data is preserved)."
+    $state = Join-Path $env:LOCALAPPDATA "HermesWorkshopInstaller\$ProfileName"
+    New-Item -ItemType Directory -Force -Path $state | Out-Null
+    Set-Acl -Path $state -AclObject $acl
+    $backendPort = Get-WorkshopBackendPort $state
     $profileHome = Join-Path $env:LOCALAPPDATA "hermes\profiles\$ProfileName"
     if (-not (Test-Path $profileHome)) {
         if (-not $ProfileSource) {
@@ -308,7 +341,7 @@ try {
     Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
     Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
-    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nDocker: hello-world passed`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
+    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nDocker: hello-world passed`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
     Save-Utf8 (Join-Path $state 'installation-ready.txt') $readiness
     Write-Host $readiness
     Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:9119" -Skip:$SkipProfileSetup

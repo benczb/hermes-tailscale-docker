@@ -27,7 +27,7 @@ This is guided setup: Tailscale/provider sign-in, OS approvals, Docker first-run
 1. Check/install prerequisites, verify Docker and run its `hello-world` test.
 2. Install Tailscale if needed, request sign-in and obtain the machine's tailnet IPv4 address.
 3. Install native Hermes and build Desktop, or reuse an existing Hermes command and build Desktop.
-4. Install a missing named profile from the bundled template, including your preconfigured SOUL.md. Preserve existing profiles. Configure Docker before starting services; the interactive profile/model wizard runs last.
+4. Ask for your profile name and install missing profile files from the bundled template, including your preconfigured SOUL.md. Preserve existing profiles. Configure Docker before starting services; the interactive profile/model wizard runs last.
 5. Ask for your dashboard username, password and confirmation. No default username. Passwords need at least 12 characters; hidden entry is the default and visible entry is optional. The session-signing secret is generated randomly.
 6. Create a user-login backend: launchd (macOS), systemd user service (Linux), or a limited-privilege Scheduled Task (Windows). It uses loopback and requires authentication through its declared Tailscale URL.
 7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Save and print `installation-ready.txt` with separate Docker, Tailscale, Desktop, backend and forwarding results.
@@ -48,6 +48,14 @@ You can start directly with the platform installer. It checks prerequisites and 
 Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your normal account. If asked to restart after WSL2 prerequisites are enabled, restart and run the installer again. Compatible WSL 2.1.5 or newer is reused without an update. If a required WSL update fails with MSI 1603/service errors, close Docker Desktop, save WSL work, restart Windows and rerun as Administrator; check `wsl --version` and the local Temp `wsl-install-logs.txt` if it persists. In Docker Desktop, finish first-run setup and enable Settings > General > Use the WSL 2 based engine. The installer validates a local Docker Desktop WSL2 engine and runs hello-world; a remote Docker engine is rejected. It then installs native Hermes, the workshop profile, your dashboard login and a local backend service, and configures Tailscale TCP access.
 
 There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The Docker engine and backend must run on this PC.
+
+## Choose your own profile name
+
+After prerequisite checks and before creating the profile/dashboard login, the installer asks **Hermes profile name [workshop]**. Enter a name such as `Hamburger`, `personal` or `Ben_01`. Press Enter to accept the shown default; reruns remember your last selection. Your chosen name is used for native profile data, private installer state, backend services, Desktop and the final wizard. Every new profile receives the same bundled preconfigured SOUL.md.
+
+Names use 1–64 letters/digits, `_` or `-`, starting with a letter/digit. `default`, paths, spaces and reserved Windows device names are rejected. Choosing an existing name preserves its SOUL.md, model settings and normal-rerun login. Choosing a different name creates/selects another profile; it does not rename or delete the old one. Each machine still has one Tailscale TCP 9119 mapping, pointing to the selected profile’s backend.
+
+For scripted installs, `HERMES_PROFILE_NAME=personal bash scripts/setup-macos-linux.sh` or `-ProfileName personal` on Windows bypasses the name prompt. Bootstrap downloads and the saved name are stored separately under the private installer `_bootstrap` directory; per-profile state remains under its chosen name. Recovery commands also ask which profile to use unless an explicit name is supplied.
 
 ## Profile/model setup runs last
 

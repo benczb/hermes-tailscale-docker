@@ -23,6 +23,13 @@ jobs:
       - name: Check Bash syntax (macOS uses stock Bash 3.2)
         if: runner.os != 'Windows'
         run: /bin/bash -n scripts/setup-macos-linux.sh
+      - name: Test profile-name prompts, validation and saved defaults
+        shell: pwsh
+        run: ./scripts/test-profile-name.ps1
+      - name: Test profile-name prompts in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-profile-name.ps1
       - name: Test interrupted profile wizard and explicit resume
         shell: pwsh
         run: ./scripts/test-windows-resume.ps1
