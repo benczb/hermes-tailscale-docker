@@ -33,7 +33,10 @@ function Get-WorkshopRemoteUri {
     if (-not [Uri]::TryCreate($Value, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -notin @('http', 'https')) {
         throw 'Use a full Linux Hermes URL such as http://100.x.y.z:9119 or https://host.tailnet.ts.net.'
     }
-    if ($uri.IsLoopback -or $uri.DnsSafeHost -in @('0.0.0.0', '::') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment) {
+    $address = $null
+    $isAddress = [Net.IPAddress]::TryParse($uri.DnsSafeHost.Trim([char[]]'[]'), [ref]$address)
+    $isUnspecified = $isAddress -and ($address.Equals([Net.IPAddress]::Any) -or $address.Equals([Net.IPAddress]::IPv6Any))
+    if ($uri.IsLoopback -or $isUnspecified -or $uri.UserInfo -or $uri.Query -or $uri.Fragment) {
         throw 'Use the Linux server address, with no embedded login, query or fragment. Enter credentials only in Desktop.'
     }
     return $uri.AbsoluteUri.TrimEnd('/')
