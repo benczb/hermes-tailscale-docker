@@ -53,6 +53,12 @@ if [ "$platform" = macos ]; then
   fi
   command -v git >/dev/null || brew install git
   xcode-select -p >/dev/null 2>&1 || fail 'Install Xcode Command Line Tools (xcode-select --install), finish the dialog, then rerun.'
+  # Native Python dependencies may need a source build on Intel/older macOS.
+  # Apple does not ship OpenSSL headers; expose Homebrew's keg-only OpenSSL.
+  brew install openssl@3 pkg-config
+  export OPENSSL_DIR="$(brew --prefix openssl@3)"
+  [ -n "$OPENSSL_DIR" ] || fail 'Homebrew OpenSSL prefix is empty; repair openssl@3 and rerun.'
+  export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
   open -a Docker
   open -a Tailscale
 else

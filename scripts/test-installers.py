@@ -42,10 +42,11 @@ elif name == 'curl':
     elif '-o' in args:
         target = pathlib.Path(args[args.index('-o') + 1])
         if target.name == 'hermes-install.sh':
-            target.write_text('#!/bin/bash\ncp "$MOCK_HERMES_SOURCE" "$MOCK_BIN/hermes"\nchmod 755 "$MOCK_BIN/hermes"\nmkdir -p "$HOME/.hermes"\n')
+            target.write_text('#!/bin/bash\nif [ "$MOCK_OS" = Darwin ]; then [ "$OPENSSL_DIR" = /mock/homebrew/opt/openssl@3 ] && [[ "$PKG_CONFIG_PATH" = "$OPENSSL_DIR/lib/pkgconfig"* ]] || exit 78; fi\ncp "$MOCK_HERMES_SOURCE" "$MOCK_BIN/hermes"\nchmod 755 "$MOCK_BIN/hermes"\nmkdir -p "$HOME/.hermes"\n')
         else:
             target.write_text('name: workshop\n')
     else: print('{"auth_required": %s}' % ('false' if os.environ.get('MOCK_FAIL') == 'auth' else 'true'))
+elif name == 'brew' and args == ['--prefix', 'openssl@3']: print('/mock/homebrew/opt/openssl@3')
 elif name == 'openssl': print('a' * (int(args[-1]) * 2))
 elif name == 'hermes':
     if args[:2] == ['profile', 'install']:
@@ -121,6 +122,9 @@ class Installers(unittest.TestCase):
                     answers = profile_answers + answers
                     result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input=answers, capture_output=True, text=True, timeout=30)
                     calls = [json.loads(line) for line in log.read_text().splitlines()]
+                    if platform == 'Darwin':
+                        self.assertIn(['brew', 'install', 'openssl@3', 'pkg-config'], calls)
+                        self.assertIn(['brew', '--prefix', 'openssl@3'], calls)
                     local_port = '9120' if failure == 'occupied-port' else '9119'
                     forward = ['tailscale', 'serve', '--bg', '--tcp=9119', 'tcp://127.0.0.1:' + local_port]
                     if failure in ('docker', 'auth', 'explicit-busy'):
