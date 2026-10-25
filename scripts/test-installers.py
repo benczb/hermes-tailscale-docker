@@ -92,6 +92,8 @@ class Installers(unittest.TestCase):
                     hermes_source.write_text(MOCK)
                     if failure == 'fresh-install':
                         (bin_dir / 'hermes').unlink()
+                    if failure == 'official-reuse':
+                        (bin_dir / 'brew').unlink()
                     log = fixture / 'calls.jsonl'
                     env = dict(os.environ, HOME=str(user_home), PATH=str(bin_dir) + os.pathsep + os.environ['PATH'], MOCK_LOG=str(log), MOCK_OS=platform, MOCK_FAIL='' if failure in ('custom-home', 'fresh-install') else failure, MOCK_HERMES_SOURCE=str(hermes_source), MOCK_BIN=str(bin_dir))
                     custom_home = fixture / 'existing custom hermes'
@@ -154,6 +156,7 @@ class Installers(unittest.TestCase):
                         if failure != 'official-reuse':
                             self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', selected_profile, 'desktop', '--build-only']))
                     if failure == 'official-reuse':
+                        self.assertFalse(any(c[0] == 'brew' or any('Homebrew/install' in arg for arg in c) for c in calls))
                         self.assertNotIn(['hermes', '-p', selected_profile, 'desktop', '--build-only'], calls)
                         self.assertFalse(any(c[0] == 'curl' and any('hermes-agent/' in arg and arg.endswith('/scripts/install.sh') for arg in c) for c in calls))
                     ready_state = user_home / '.hermes-workshop-installer' / selected_profile / 'installation-ready.txt'

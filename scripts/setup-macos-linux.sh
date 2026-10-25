@@ -51,13 +51,19 @@ mkdir -p "$state"
 
 
 if [ "$platform" = macos ]; then
-  if ! command -v brew >/dev/null; then
-    curl --fail --show-error --silent --location https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$state/homebrew-install.sh"
-    /bin/bash "$state/homebrew-install.sh"
-    if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)";
-    elif [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
+  need_brew=0
+  if [ "$use_existing_desktop" != 1 ]; then need_brew=1; fi
+  if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then need_brew=1; fi
+  if ! command -v tailscale >/dev/null && [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then need_brew=1; fi
+  if [ "$need_brew" = 1 ]; then
+    if ! command -v brew >/dev/null; then
+      curl --fail --show-error --silent --location https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$state/homebrew-install.sh"
+      /bin/bash "$state/homebrew-install.sh"
+      if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)";
+      elif [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
+    fi
+    command -v brew >/dev/null || fail 'Finish Homebrew setup, then rerun.'
   fi
-  command -v brew >/dev/null || fail 'Finish Homebrew setup, then rerun.'
   if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then brew install --cask docker; fi
   if ! command -v tailscale >/dev/null && [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
     brew install --cask tailscale
