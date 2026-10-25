@@ -14,10 +14,14 @@ const page = pathToFileURL(path.join(__dirname, 'ui/index.html')).href;
 const send = data => { if (window && !window.isDestroyed()) window.webContents.send('setup:event', data); };
 function hostEnvironment() {
   const env = { ...process.env };
+  const inheritedPath = process.env.PATH || '';
   const extra = process.platform === 'win32'
     ? [path.join(env.LOCALAPPDATA || '', 'hermes/bin'), path.join(env.ProgramFiles || 'C:\\Program Files', 'Docker/Docker/resources/bin'), path.join(env.ProgramFiles || 'C:\\Program Files', 'Tailscale')]
     : [path.join(os.homedir(), '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', '/Applications/Docker.app/Contents/Resources/bin'];
-  env.PATH = [...extra, env.PATH || ''].join(path.delimiter);
+  // Windows environment keys are case-insensitive; do not send competing Path
+  // and PATH entries to ConPTY or newly installed tools can disappear.
+  for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
+  env.PATH = [...extra, inheritedPath].join(path.delimiter);
   return env;
 }
 async function probe(file, args) {
@@ -64,9 +68,11 @@ handler('setup:inspect', inspect);
 handler('setup:start', async input => {
   if (task || starting) throw new Error('An installation is already running.');
   starting = true;
+  canceled = false;
   try {
   const settings = core.validateSettings(input);
   if (!(await inspect()).supported) throw new Error('This computer is not supported.');
+  if (canceled) throw new Error('Installation canceled before changes were made.');
   if (process.platform !== 'win32' && process.getuid?.() === 0) throw new Error('Open Hermes Setup using your normal desktop account, not root.');
   // No password is serialized, passed in argv/environment or saved for resume.
   await fs.mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 });
@@ -117,12 +123,12 @@ handler('setup:respond', input => {
   transcript.hide(input); prompts.tail = ''; awaitingInput = false; task.write(input + '\r');
   send({ type: 'input-cleared' });
 });
-handler('setup:cancel', () => { if (task) { canceled = true; task.kill(); } });
+handler('setup:cancel', () => { if (starting || task) canceled = true; if (task) task.kill(); });
 handler('setup:dashboard', async () => { if (!dashboardUrl) throw new Error('No verified dashboard address is available.'); await shell.openExternal(dashboardUrl); });
 handler('setup:desktop', async () => {
   if (task || !activeProfile || !dashboardUrl) throw new Error('Complete installation first.');
   const env = hostEnvironment(); delete env.HERMES_HOME; delete env.HERMES_DESKTOP_REMOTE_URL;
-  const file = process.platform === 'win32' ? path.join(env.LOCALAPPDATA, 'hermes/bin/hermes.exe') : path.join(os.homedir(), '.local/bin/hermes');
+  const file = process.platform === 'win32' ? 'hermes.exe' : 'hermes';
   const child = spawn(file, ['-p', activeProfile, 'desktop'], { env, detached: true, stdio: 'ignore', windowsHide: true });
   return new Promise((resolve, reject) => { child.once('error', () => reject(new Error('Desktop could not be launched. Check the native Hermes installation.'))); child.once('spawn', () => { child.unref(); resolve(); }); });
 });
