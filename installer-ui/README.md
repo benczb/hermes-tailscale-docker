@@ -31,7 +31,7 @@ npm run dist
 
 The GUI build workflow creates separate Windows x64, Intel macOS, Apple Silicon macOS and Linux x64 packages. It bundles the exact platform scripts from the same commit. Build each package on its native OS so `node-pty` is built for the right platform and Electron ABI.
 
-Mac packages are unsigned preview ZIPs. Windows packages are unsigned portable executables that request administrator approval. Public distribution still needs Apple Developer signing/notarization and Windows Authenticode signing, plus clean-machine validation. Changing the archive format does not remove those trust requirements. Intel Macs use a source build of Hermes Desktop; an Apple Silicon-only upstream DMG is never substituted.
+Mac preview ZIPs use an ad-hoc code signature, verified during the build. This validates package integrity but does not establish a trusted publisher or satisfy Gatekeeper notarization. Windows packages are unsigned portable executables that request administrator approval. Public distribution still needs Apple Developer signing/notarization and Windows Authenticode signing, plus clean-machine validation. Changing the archive format does not remove those trust requirements. Intel Macs use a source build of Hermes Desktop; an Apple Silicon-only upstream DMG is never substituted.
 
 ## Credential handling
 

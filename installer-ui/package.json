@@ -27,7 +27,7 @@
       { "from": "../profiles/workshop/SOUL.md", "to": "installer/SOUL.md" }
     ],
     "artifactName": "Hermes-Setup-${version}-${os}-${arch}.${ext}",
-    "mac": { "category": "public.app-category.utilities", "target": ["zip"], "identity": null },
+    "mac": { "category": "public.app-category.utilities", "target": ["zip"], "identity": "-" },
     "win": { "target": ["portable"], "requestedExecutionLevel": "requireAdministrator" },
     "linux": { "target": ["AppImage"], "category": "Utility" }
   }
