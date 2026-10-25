@@ -28,31 +28,33 @@ async function probe(file, args) {
   try { const { stdout } = await exec(file, args, { timeout: 15000, windowsHide: true, env: hostEnvironment(), maxBuffer: 1024 * 1024 }); return { ok: true, output: stdout.replace(/\0/g, '').trim() }; }
   catch { return { ok: false, output: '' }; }
 }
-async function inspect() {
+async function inspect(requestedMode) {
+  let saved = {};
+  try { saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'settings.json'), 'utf8')); } catch {}
+  const terminalBackend = requestedMode === undefined ? (saved.terminalBackend === 'local' ? 'local' : 'docker') : requestedMode;
+  if (!['docker', 'local'].includes(terminalBackend)) throw new Error('Choose Docker sandbox or local terminal.');
   const platform = process.platform;
   const supported = ['win32', 'darwin', 'linux'].includes(platform) && ['x64', 'arm64'].includes(os.arch()) && !(platform === 'linux' && /microsoft|wsl/i.test(os.release()));
   const [docker, tailscale, hermes, brew, wsl] = await Promise.all([
-    probe('docker', ['info', '--format', '{{.OSType}}']),
+    terminalBackend === 'docker' ? probe('docker', ['info', '--format', '{{.OSType}}']) : Promise.resolve(null),
     probe(platform === 'darwin' ? '/Applications/Tailscale.app/Contents/MacOS/Tailscale' : 'tailscale', ['status', '--json']),
     platform === 'win32'
       ? probe('powershell.exe', ['-NoProfile', '-Command', 'if (Get-Command hermes -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'])
       : probe('/usr/bin/which', ['hermes']),
     platform === 'darwin' ? probe('brew', ['--version']) : Promise.resolve(null),
-    platform === 'win32' ? probe('wsl.exe', ['--version']) : Promise.resolve(null)
+    platform === 'win32' && terminalBackend === 'docker' ? probe('wsl.exe', ['--version']) : Promise.resolve(null)
   ]);
   let tailConnected = false;
   try { tailConnected = JSON.parse(tailscale.output).BackendState === 'Running'; } catch {}
-  let saved = {};
-  try { saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'settings.json'), 'utf8')); } catch {}
   const soulPath = app.isPackaged ? path.join(root(), 'SOUL.md') : path.resolve(__dirname, '../profiles/workshop/SOUL.md');
   return {
     platform, architecture: os.arch(), system: `${os.type()} ${os.release()} · ${os.arch()}`, supported,
-    defaults: { profile: saved.profile || '', username: saved.username || '', reset: false },
+    defaults: { profile: saved.profile || '', username: saved.username || '', reset: false, terminalBackend },
     checks: [
       { title: 'This computer', status: supported ? 'ready' : 'blocked', detail: supported ? 'Native installation on this computer.' : 'Use a native 64-bit Windows, macOS or Linux desktop; WSL is not the installer host.' },
       ...(wsl ? [{ title: 'Windows WSL2', status: 'check', detail: wsl.ok ? 'Detected. The installer will check compatibility and update if needed; a restart may be required.' : 'The installer will enable or update WSL2 for Docker. A restart may be required.' }] : []),
       ...(brew ? [{ title: 'Mac build tools', status: 'check', detail: brew.ok ? 'Homebrew found. OpenSSL and build tools will be checked.' : 'Homebrew will be installed. Xcode Command Line Tools may need an Apple setup dialog.' }] : []),
-      { title: 'Docker terminal sandbox', status: docker.ok && docker.output === 'linux' ? 'ready' : 'check', detail: docker.ok && docker.output === 'linux' ? 'Engine responds; installation will also run a test container.' : 'Docker needs installation, startup or configuration.' },
+      ...(docker ? [{ title: 'Docker terminal sandbox', status: docker.ok && docker.output === 'linux' ? 'ready' : 'check', detail: docker.ok && docker.output === 'linux' ? 'Engine responds; installation will also run a test container.' : 'Docker needs installation, startup or configuration.' }] : [{ title: 'Local terminal', status: 'ready', detail: 'Commands run on this computer with your account permissions. Docker and its WSL2 prerequisites are not required.' }]),
       { title: 'Host Tailscale', status: tailConnected ? 'ready' : 'check', detail: tailConnected ? 'Connected. TCP forwarding will be configured after the authenticated backend is ready.' : 'Install or sign in to Tailscale during setup.' },
       { title: 'Hermes runtime', status: hermes.ok ? 'ready' : 'check', detail: hermes.ok ? 'An existing native command is available. The installer will reuse it.' : 'A native Hermes runtime will be installed.' }
     ],
@@ -71,12 +73,12 @@ handler('setup:start', async input => {
   canceled = false;
   try {
   const settings = core.validateSettings(input);
-  if (!(await inspect()).supported) throw new Error('This computer is not supported.');
+  if (!(await inspect(settings.terminalBackend)).supported) throw new Error('This computer is not supported.');
   if (canceled) throw new Error('Installation canceled before changes were made.');
   if (process.platform !== 'win32' && process.getuid?.() === 0) throw new Error('Open Hermes Setup using your normal desktop account, not root.');
   // No password is serialized, passed in argv/environment or saved for resume.
   await fs.mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 });
-  await fs.writeFile(path.join(app.getPath('userData'), 'settings.json'), JSON.stringify({ profile: settings.profile, username: settings.username }), { mode: 0o600 });
+  await fs.writeFile(path.join(app.getPath('userData'), 'settings.json'), JSON.stringify({ profile: settings.profile, username: settings.username, terminalBackend: settings.terminalBackend }), { mode: 0o600 });
   activeProfile = settings.profile;
   dashboardUrl = null;
   canceled = false;

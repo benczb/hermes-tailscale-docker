@@ -1,6 +1,7 @@
-# Native Windows PowerShell 5.1+. Docker Desktop uses WSL2 internally; no separate Linux host.
+# Native Windows PowerShell 5.1+. Optional Docker terminal uses WSL2; local terminal does not.
 [CmdletBinding()]
 param(
+    [ValidateSet('docker', 'local')][string]$TerminalBackend = 'docker',
     [string]$ProfileName = '',
     [string]$ProfileSource = '',
     [switch]$ResetDashboardAuth,
@@ -14,7 +15,7 @@ function Invoke-Checked {
     if ($LASTEXITCODE -ne 0) { throw "$File failed (exit $LASTEXITCODE). Fix the error and rerun." }
 }
 function Complete-WorkshopProfileSetup {
-    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [switch]$Skip, [string]$PublicUrl = '')
+    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [switch]$Skip, [string]$PublicUrl = '', [ValidateSet('docker', 'local')][string]$TerminalBackend = 'docker', [string]$WorkingDirectory = '')
     $pending = Join-Path $StateDirectory 'setup-pending'
     if (-not (Test-Path $pending)) { return }
     if ($Skip) {
@@ -24,8 +25,9 @@ function Complete-WorkshopProfileSetup {
         Write-Host 'Running profile setup LAST. Desktop and the local authenticated backend are already installed. Closing this window does not remove them.'
         try { Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'setup') }
         finally {
-            # The full wizard can change its terminal choice; retain the promised sandbox.
-            Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'terminal.backend', 'docker')
+            # The full wizard can change its terminal choice; retain the selected terminal backend.
+            Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'terminal.backend', $TerminalBackend)
+            if ($WorkingDirectory) { Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'terminal.cwd', $WorkingDirectory) }
             if ($PublicUrl) { Invoke-Checked $HermesCommand @('-p', $SelectedProfile, 'config', 'set', 'dashboard.public_url', $PublicUrl) }
         }
     }
@@ -33,10 +35,10 @@ function Complete-WorkshopProfileSetup {
     Remove-Item -LiteralPath $pending
 }
 function Start-WorkshopProfileSetup {
-    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [string]$PublicUrl, [switch]$Skip)
+    param([string]$HermesCommand, [string]$SelectedProfile, [string]$StateDirectory, [string]$PublicUrl, [switch]$Skip, [ValidateSet('docker', 'local')][string]$TerminalBackend = 'docker', [string]$WorkingDirectory = '')
     if (-not (Test-Path (Join-Path $StateDirectory 'setup-pending'))) { return }
     if ($Skip) {
-        Complete-WorkshopProfileSetup $HermesCommand $SelectedProfile $StateDirectory -Skip
+        Complete-WorkshopProfileSetup $HermesCommand $SelectedProfile $StateDirectory -Skip -TerminalBackend $TerminalBackend -WorkingDirectory $WorkingDirectory
         return
     }
     $launcher = Join-Path $StateDirectory 'Configure-Hermes-Profile.ps1'
@@ -44,7 +46,7 @@ function Start-WorkshopProfileSetup {
     foreach ($name in @('Invoke-Checked', 'Complete-WorkshopProfileSetup')) {
         $code += "function $name {`r`n" + (Get-Command $name).Definition + "`r`n}`r`n"
     }
-    $code += "Complete-WorkshopProfileSetup -HermesCommand '$($HermesCommand.Replace("'", "''"))' -SelectedProfile '$SelectedProfile' -StateDirectory '$($StateDirectory.Replace("'", "''"))' -PublicUrl '$($PublicUrl.Replace("'", "''"))'`r`n"
+    $code += "Complete-WorkshopProfileSetup -HermesCommand '$($HermesCommand.Replace("'", "''"))' -SelectedProfile '$SelectedProfile' -StateDirectory '$($StateDirectory.Replace("'", "''"))' -PublicUrl '$($PublicUrl.Replace("'", "''"))' -TerminalBackend '$TerminalBackend' -WorkingDirectory '$($WorkingDirectory.Replace("'", "''"))'`r`n"
     Save-Utf8 $launcher $code
     Write-Host 'Opening the optional profile wizard LAST in a separate PowerShell window. App installation is already complete.'
     Write-Host "You can reopen it later with: $launcher"
@@ -143,6 +145,7 @@ function Get-WorkshopBackendPort {
     throw 'No local backend port is available in 9119–9139. Existing listeners were left running.'
 }
 try {
+    $TerminalBackend = $TerminalBackend.ToLowerInvariant()
     if ($env:OS -ne 'Windows_NT') { throw 'Run this in native Windows PowerShell.' }
     $ProfileName = $ProfileName.Trim()
     if ($ProfileName -and -not (Test-WorkshopProfileName $ProfileName)) { throw 'Invalid profile name. Use 1–64 letters/digits, _ or -, starting with a letter/digit; no default or device names.' }
@@ -160,18 +163,22 @@ try {
     }
     $os = Get-CimInstance Win32_OperatingSystem
     Assert-WorkshopWindowsHost $os.Caption $os.Version $os.ProductType $env:PROCESSOR_ARCHITECTURE
-    Write-Host 'Native Hermes, Desktop and Tailscale run on this PC. Docker Desktop uses its internal WSL2 Linux engine for terminal commands. No separate Linux machine or full Hyper-V feature is required.'
-    $featuresChanged = $false
-    foreach ($feature in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
-        $current = Get-WindowsOptionalFeature -Online -FeatureName $feature
-        if ($current.State -ne 'Enabled') {
-            Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart | Out-Null
-            $featuresChanged = $true
+    if ($TerminalBackend -eq 'docker') {
+        Write-Host 'Native Hermes, Desktop and Tailscale run on this PC. Docker Desktop uses its internal WSL2 Linux engine for terminal commands. No separate Linux machine or full Hyper-V feature is required.'
+        $featuresChanged = $false
+        foreach ($feature in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+            $current = Get-WindowsOptionalFeature -Online -FeatureName $feature
+            if ($current.State -ne 'Enabled') {
+                Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart | Out-Null
+                $featuresChanged = $true
+            }
         }
+        if ($featuresChanged) { throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.' }
+        Ensure-WorkshopWsl
+        Invoke-Checked wsl.exe @('--set-default-version', '2')
+    } else {
+        Write-Host 'Local terminal selected. Docker and WSL2 are not installed, updated or checked.'
     }
-    if ($featuresChanged) { throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.' }
-    Ensure-WorkshopWsl
-    Invoke-Checked wsl.exe @('--set-default-version', '2')
     $state = Join-Path $env:LOCALAPPDATA 'HermesWorkshopInstaller\_bootstrap'
     New-Item -ItemType Directory -Force -Path $state | Out-Null
     # Restrict installer state, including the saved login, to this user and SYSTEM.
@@ -185,38 +192,42 @@ try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $env:PATH = "$env:LOCALAPPDATA\hermes\bin;$env:ProgramFiles\Docker\Docker\resources\bin;$env:ProgramFiles\Tailscale;$env:PATH"
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'Install Microsoft App Installer (winget), then rerun.' }
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    if ($TerminalBackend -eq 'docker' -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Invoke-Checked winget @('install', '--id', 'Docker.DockerDesktop', '--exact', '--accept-package-agreements', '--accept-source-agreements', '--override', 'install --quiet --backend=wsl-2')
     }
     if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
         Invoke-Checked winget @('install', '--id', 'Tailscale.Tailscale', '--exact', '--accept-package-agreements', '--accept-source-agreements')
     }
-    # Existing Docker Desktop must also use its local WSL2 engine.
-    $dockerSettings = Join-Path $env:APPDATA 'Docker\settings-store.json'
-    if (-not (Test-Path $dockerSettings)) { $dockerSettings = Join-Path $env:APPDATA 'Docker\settings.json' }
-    if (Test-Path $dockerSettings) {
-        $settings = Get-Content $dockerSettings -Raw | ConvertFrom-Json
-        if ($settings.PSObject.Properties.Name -contains 'wslEngineEnabled' -and -not $settings.wslEngineEnabled) {
-            throw 'In Docker Desktop Settings > General, enable Use the WSL 2 based engine, Apply/restart, then rerun.'
+    $dockerCheck = 'not required (local terminal)'
+    if ($TerminalBackend -eq 'docker') {
+        # Existing Docker Desktop must also use its local WSL2 engine.
+        $dockerSettings = Join-Path $env:APPDATA 'Docker\settings-store.json'
+        if (-not (Test-Path $dockerSettings)) { $dockerSettings = Join-Path $env:APPDATA 'Docker\settings.json' }
+        if (Test-Path $dockerSettings) {
+            $settings = Get-Content $dockerSettings -Raw | ConvertFrom-Json
+            if ($settings.PSObject.Properties.Name -contains 'wslEngineEnabled' -and -not $settings.wslEngineEnabled) {
+                throw 'In Docker Desktop Settings > General, enable Use the WSL 2 based engine, Apply/restart, then rerun.'
+            }
         }
+        if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+            Start-Process (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe')
+        }
+        $dockerReady = $false
+        for ($i = 0; $i -lt 60; $i++) {
+            & docker info *> $null
+            if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $dockerReady) { throw 'Finish Docker Desktop first-run setup, enable its WSL 2 based engine and Linux containers, and rerun.' }
+        if ($env:DOCKER_HOST -and $env:DOCKER_HOST -notlike 'npipe://*') { throw 'Unset remote DOCKER_HOST and select the local Docker Desktop context, then rerun.' }
+        $engineInfo = (& docker info --format '{{json .}}' | Out-String) | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the Docker engine.' }
+        $endpoint = (& docker context inspect --format '{{.Endpoints.docker.Host}}' | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the active Docker context.' }
+        Assert-WorkshopDockerEngine $engineInfo.OSType $engineInfo.OperatingSystem $engineInfo.KernelVersion $endpoint
+        Invoke-Checked docker @('run', '--rm', 'hello-world')
+        $dockerCheck = 'hello-world passed'
     }
-    if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
-        Start-Process (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe')
-    }
-    $dockerReady = $false
-    for ($i = 0; $i -lt 60; $i++) {
-        & docker info *> $null
-        if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
-        Start-Sleep -Seconds 2
-    }
-    if (-not $dockerReady) { throw 'Finish Docker Desktop first-run setup, enable its WSL 2 based engine and Linux containers, and rerun.' }
-    if ($env:DOCKER_HOST -and $env:DOCKER_HOST -notlike 'npipe://*') { throw 'Unset remote DOCKER_HOST and select the local Docker Desktop context, then rerun.' }
-    $engineInfo = (& docker info --format '{{json .}}' | Out-String) | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the Docker engine.' }
-    $endpoint = (& docker context inspect --format '{{.Endpoints.docker.Host}}' | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the active Docker context.' }
-    Assert-WorkshopDockerEngine $engineInfo.OSType $engineInfo.OperatingSystem $engineInfo.KernelVersion $endpoint
-    Invoke-Checked docker @('run', '--rm', 'hello-world')
     Write-Host 'Checking Tailscale. Existing signed-in installations do not need another login prompt.'
     & tailscale status *> $null
     if ($LASTEXITCODE -ne 0) {
@@ -259,8 +270,14 @@ try {
         Write-Host "Keeping existing profile: $ProfileName"
 
     }
-    Write-Host 'Configuring the local Docker terminal backend and dashboard login.'
-    Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.backend', 'docker')
+    $terminalWorkingDirectory = '/workspace'
+    if ($TerminalBackend -eq 'local') {
+        $terminalWorkingDirectory = Join-Path $profileHome 'workspace'
+        New-Item -ItemType Directory -Force -Path $terminalWorkingDirectory | Out-Null
+    }
+    Write-Host "Configuring the $TerminalBackend terminal backend and dashboard login."
+    Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.backend', $TerminalBackend)
+    Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.cwd', $terminalWorkingDirectory)
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'dashboard.public_url', "http://${tailIp}:9119")
     if ($ResetDashboardAuth -or -not (Test-Path (Join-Path $state 'auth-configured'))) {
         Write-Host 'Choose your Hermes dashboard login (separate from your OS or Tailscale login).'
@@ -341,10 +358,10 @@ try {
     Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
     Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
-    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nDocker: hello-world passed`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
+    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nTerminal backend: $TerminalBackend`r`nTerminal workspace: $terminalWorkingDirectory`r`nDocker: $dockerCheck`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
     Save-Utf8 (Join-Path $state 'installation-ready.txt') $readiness
     Write-Host $readiness
-    Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:9119" -Skip:$SkipProfileSetup
+    Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:9119" -Skip:$SkipProfileSetup -TerminalBackend $TerminalBackend -WorkingDirectory $terminalWorkingDirectory
 } catch {
     Write-Error "Setup stopped: $($_.Exception.Message)" -ErrorAction Continue
     exit 1

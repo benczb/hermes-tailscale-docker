@@ -20,7 +20,7 @@
         <li><span>4</span><div>Installation<small>Follow each component</small></div></li>
         <li><span>5</span><div>Ready to connect<small>Verify and open Hermes</small></div></li>
       </ol>
-      <div class="architecture"><b>On this computer</b><p>Hermes Desktop + native agent</p><p>Docker terminal sandbox</p><p>Tailscale private access</p></div>
+      <div class="architecture"><b>On this computer</b><p>Hermes Desktop + native agent</p><p id="terminal-summary">Docker terminal sandbox</p><p>Tailscale private access</p></div>
     </aside>
     <main>
       <div id="error" role="alert" hidden></div>
@@ -29,6 +29,11 @@
         <h1 id="settings-title" tabindex="-1">Make Hermes yours.</h1>
         <p class="intro">Choose your profile and login first. Nothing is installed until you review and start setup.</p>
         <form id="settings-form">
+          <fieldset class="terminal-choice">
+            <legend>Where should terminal commands run?</legend>
+            <label><input type="radio" name="terminal-backend" value="docker" checked><span><b>Docker sandbox</b><small>Run terminal commands in a container. Windows uses WSL2 for Docker.</small></span></label>
+            <label><input type="radio" name="terminal-backend" value="local"><span><b>Local terminal</b><small>Run commands directly on this computer with your account’s access. No Docker or WSL2 setup.</small></span></label>
+          </fieldset>
           <label for="profile">Profile name</label>
           <input id="profile" name="profile" required maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}" autocomplete="off" placeholder="e.g. hamburger" aria-describedby="profile-help">
           <p id="profile-help" class="help">Letters, numbers, underscores and hyphens. Existing profiles are preserved.</p>
@@ -57,7 +62,7 @@
         <p class="intro">The installer will use these choices without asking for your profile or dashboard login again.</p>
         <dl id="review-settings" class="review-list"></dl>
         <h2>What will be installed or reused</h2>
-        <ul class="plain-list"><li>Native Hermes runtime and a local Desktop build.</li><li>Docker for the terminal sandbox; a test container must run successfully.</li><li>Host Tailscale, authenticated Hermes backend and private TCP port 9119.</li><li>A service that starts the backend when you log in.</li></ul>
+        <ul class="plain-list"><li>Native Hermes runtime and a local Desktop build.</li><li id="terminal-review">Docker for the terminal sandbox; a test container must run successfully.</li><li>Host Tailscale, authenticated Hermes backend and private TCP port 9119.</li><li>A service that starts the backend when you log in.</li></ul>
         <details class="soul"><summary>Included profile: Safe Agent Starter · view SOUL.md</summary><pre id="soul"></pre></details>
         <p class="help">Choose your AI provider and model in Hermes Desktop after installation. Account sign-in, administrator approval and required restarts may need your attention during setup.</p>
         <label class="check option"><input id="accepted" type="checkbox"><span>I approve installing or updating these components and configuring private Tailscale access.</span></label>
@@ -67,7 +72,7 @@
         <p class="eyebrow">04 / INSTALLATION</p><h1 id="installing-title" tabindex="-1">Building your workspace.</h1>
         <p id="progress-copy" class="intro" role="status">Starting the installer. Keep this window open.</p>
         <ul id="install-stages" class="install-stages">
-          <li data-stage="prerequisites"><span class="indicator"></span><span>System prerequisites, Docker and Tailscale</span><small>Waiting</small></li>
+          <li data-stage="prerequisites"><span class="indicator"></span><span id="prerequisites-label">System prerequisites, Docker and Tailscale</span><small>Waiting</small></li>
           <li data-stage="runtime"><span class="indicator"></span><span>Native Hermes runtime</span><small>Waiting</small></li>
           <li data-stage="profile"><span class="indicator"></span><span>Profile and dashboard login</span><small>Waiting</small></li>
           <li data-stage="desktop"><span class="indicator"></span><span>Hermes Desktop build and backend</span><small>Waiting</small></li>

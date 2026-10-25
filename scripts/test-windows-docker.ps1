@@ -54,3 +54,18 @@ try {
     if ($source -match 'Microsoft-Hyper-V-All|--backend=hyper-v|Linux Hermes URL|RemoteInstallerPath') { throw 'Old Hyper-V/remote architecture remains' }
     Write-Host 'Windows Home, local WSL2 Docker engine and backend port regression checks passed.'
 } finally { Remove-Item -LiteralPath $fixture -Recurse -Force }
+# Execute the production Docker/WSL gates in local mode without real host changes.
+$gates = @($ast.FindAll({ param($n)
+    $n -is [System.Management.Automation.Language.IfStatementAst] -and
+    $n.Clauses[0].Item1.Extent.Text -match '\$TerminalBackend -eq ''docker'''
+}, $true))
+if ($gates.Count -ne 3) { throw 'Expected WSL, Docker-install and Docker-engine gates' }
+function Get-WindowsOptionalFeature { throw 'Local mode checked WSL features' }
+function Enable-WindowsOptionalFeature { throw 'Local mode changed Windows features' }
+function Ensure-WorkshopWsl { throw 'Local mode attempted a WSL update' }
+function wsl.exe { throw 'Local mode invoked WSL' }
+function docker { throw 'Local mode invoked Docker' }
+function winget { throw 'Local mode attempted a Docker package install' }
+$TerminalBackend = 'local'
+foreach ($gate in $gates) { . ([scriptblock]::Create($gate.Extent.Text)) }
+Write-Host 'Local mode skips all production Docker/WSL gates.'

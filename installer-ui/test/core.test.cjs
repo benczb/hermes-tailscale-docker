@@ -23,6 +23,16 @@ test('secret values never appear in process arguments or inherited environment',
     }
   }
 });
+test('terminal choice reaches both OS installers and rejects unknown backends', () => {
+  assert.equal(validateSettings(sample()).terminalBackend, 'docker');
+  for (const mode of ['docker', 'local']) {
+    const settings = validateSettings({ ...sample(), terminalBackend: mode });
+    assert.equal(installEnvironment(settings, {}).HERMES_TERMINAL_BACKEND, mode);
+    const args = installCommand(settings, '/trusted/bundle', 'win32').args;
+    assert.equal(args[args.indexOf('-TerminalBackend') + 1], mode);
+  }
+  for (const mode of ['ssh', '', null, 'local; command']) assert.throws(() => validateSettings({ ...sample(), terminalBackend: mode }));
+});
 test('credentials answer only exact known prompts, even across arbitrary chunks', () => {
   const s = validateSettings(sample()), sent = [];
   const router = new CredentialPrompts(s, value => sent.push(value));

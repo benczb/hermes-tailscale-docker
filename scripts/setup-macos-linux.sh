@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Native Hermes + source-built Desktop; only terminal commands run in Docker.
+# Native Hermes + source-built Desktop; terminal commands use Docker or the local host.
 # Bash 3.2 compatible (including stock macOS Bash).
 set -Eeuo pipefail
 umask 077
@@ -23,6 +23,8 @@ valid_profile_name() {
   esac
   return 0
 }
+terminal_backend=${HERMES_TERMINAL_BACKEND:-docker}
+case "$terminal_backend" in docker|local) ;; *) fail 'HERMES_TERMINAL_BACKEND must be docker or local.' ;; esac
 profile=${HERMES_PROFILE_NAME:-}
 if [ -n "$profile" ]; then
   valid_profile_name "$profile" || fail 'Use 1–64 letters/digits, _ or -, starting with a letter/digit; default and reserved device names are not allowed.'
@@ -47,7 +49,7 @@ if [ "$platform" = macos ]; then
     elif [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
   fi
   command -v brew >/dev/null || fail 'Finish Homebrew setup, then rerun.'
-  if ! command -v docker >/dev/null; then brew install --cask docker; fi
+  if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then brew install --cask docker; fi
   if ! command -v tailscale >/dev/null && [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
     brew install --cask tailscale
   fi
@@ -59,7 +61,7 @@ if [ "$platform" = macos ]; then
   export OPENSSL_DIR="$(brew --prefix openssl@3)"
   [ -n "$OPENSSL_DIR" ] || fail 'Homebrew OpenSSL prefix is empty; repair openssl@3 and rerun.'
   export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-  open -a Docker
+  if [ "$terminal_backend" = docker ]; then open -a Docker; fi
   open -a Tailscale
 else
   if command -v apt-get >/dev/null; then
@@ -67,7 +69,7 @@ else
     sudo apt-get install -y curl git build-essential pkg-config libatomic1 libgtk-3-0 libnss3
   fi
   # Deliberately support apt-based desktops first; do not guess other distro package names.
-  if ! command -v docker >/dev/null; then
+  if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then
     command -v apt-get >/dev/null || fail 'Install Docker Engine and Compose v2 using your distro guide, then rerun.'
     sudo apt-get update
     sudo apt-get install -y docker.io docker-compose-v2
@@ -81,17 +83,24 @@ else
   command -v systemctl >/dev/null || fail 'This launcher requires systemd user services.'
   systemctl --user show-environment >/dev/null || fail 'Run in a logged-in desktop session with systemd user services.'
 fi
-for tool in curl git docker; do command -v "$tool" >/dev/null || fail "Missing prerequisite: $tool"; done
-# Do not change Docker group membership or invoke the native agent as root.
-ready=0
-for ((attempt=0; attempt<30; attempt++)); do
-  if docker info >/dev/null 2>&1; then ready=1; break; fi
-  sleep 2
-done
-[ "$ready" = 1 ] || fail 'Docker is unavailable. Start it and grant your user access to its socket, then rerun.'
-[ "$(docker info --format '{{.OSType}}')" = linux ] || fail 'Select Linux containers in Docker.'
-# Prove the terminal sandbox can actually start, not merely that its CLI exists.
-docker run --rm hello-world
+for tool in curl git; do command -v "$tool" >/dev/null || fail "Missing prerequisite: $tool"; done
+docker_check='not required (local terminal)'
+if [ "$terminal_backend" = docker ]; then
+  command -v docker >/dev/null || fail 'Missing prerequisite: docker'
+  # Do not change Docker group membership or invoke the native agent as root.
+  ready=0
+  for ((attempt=0; attempt<30; attempt++)); do
+    if docker info >/dev/null 2>&1; then ready=1; break; fi
+    sleep 2
+  done
+  [ "$ready" = 1 ] || fail 'Docker is unavailable. Start it and grant your user access to its socket, then rerun.'
+  [ "$(docker info --format '{{.OSType}}')" = linux ] || fail 'Select Linux containers in Docker.'
+  # Prove the terminal sandbox can actually start, not merely that its CLI exists.
+  docker run --rm hello-world
+  docker_check='hello-world passed'
+else
+  echo 'Local terminal selected. Docker is not installed, started or checked.'
+fi
 
 tailscale_bin=$(command -v tailscale || true)
 if [ -z "$tailscale_bin" ] && [ "$platform" = macos ]; then tailscale_bin=/Applications/Tailscale.app/Contents/MacOS/Tailscale; fi
@@ -226,7 +235,13 @@ else
   echo "Keeping existing profile: $profile (including credentials and model settings)."
 fi
 # Configure the sandbox before starting the backend; the optional wizard runs last.
-hermes -p "$profile" config set terminal.backend docker
+terminal_cwd=/workspace
+if [ "$terminal_backend" = local ]; then
+  terminal_cwd="$profile_home/workspace"
+  mkdir -p "$terminal_cwd"
+fi
+hermes -p "$profile" config set terminal.backend "$terminal_backend"
+hermes -p "$profile" config set terminal.cwd "$terminal_cwd"
 # An explicit external origin engages Hermes auth even behind a loopback TCP proxy.
 hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
 if [ ! -f "$state/auth-configured" ] || [ "${HERMES_RESET_DASHBOARD_AUTH:-0}" = 1 ]; then
@@ -331,7 +346,9 @@ echo 'Verify from another tailnet device; this installer cannot prove remote ACL
 cat > "$state/installation-ready.txt" <<READY
 INSTALLATION CHECKS COMPLETE (model/provider setup is separate)
 Profile: $profile
-Docker: hello-world passed
+Terminal backend: $terminal_backend
+Terminal workspace: $terminal_cwd
+Docker: $docker_check
 Tailscale: connected ($tail_ip)
 Hermes Desktop: build completed
 Local backend: authenticated status check passed on 127.0.0.1:$backend_port
@@ -346,10 +363,11 @@ if [ -f "$state/setup-pending" ]; then
     rm "$state/setup-pending"
   else
     echo 'Running profile setup LAST. Desktop and the local backend are already installed.'
-    # Confine wizard cancellation to a child shell and restore sandbox settings on exit.
+    # Confine wizard cancellation to a child shell and restore the selected terminal backend on exit.
     (
       restore_profile_settings() {
-        hermes -p "$profile" config set terminal.backend docker
+        hermes -p "$profile" config set terminal.backend "$terminal_backend"
+        hermes -p "$profile" config set terminal.cwd "$terminal_cwd"
         hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
       }
       trap restore_profile_settings EXIT

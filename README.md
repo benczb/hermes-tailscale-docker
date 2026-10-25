@@ -1,6 +1,6 @@
 # Hermes + Tailscale + Docker
 
-Native Hermes and source-built Desktop run on your own macOS, Linux or Windows computer. Terminal tool commands use a local Docker Linux-container sandbox, with Tailscale for private remote access. **No separate Linux machine is required.** On Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. On macOS, Docker Desktop manages its own internal Linux VM.
+Native Hermes and source-built Desktop run on your own macOS, Linux or Windows computer. Choose a Docker Linux-container sandbox or a local host terminal for tool commands, with Tailscale for private remote access. **No separate Linux machine is required.** In Docker mode on Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. In local-terminal mode Docker and its Windows WSL2 prerequisites are skipped. On macOS, Docker Desktop manages its own internal Linux VM when selected.
 
 ## Direct downloads
 
@@ -16,18 +16,34 @@ Extract each ZIP once. Keep its launcher and `scripts/` folder together. Downloa
 
 This is guided setup: Tailscale/provider sign-in, OS approvals, Docker first-run acceptance and possible reboots require user input. Desktop is built from source; compiler/system dependencies can be required. Automated checks are not clean-machine installation evidence.
 
+## Choose the terminal backend
+
+The graphical installer offers **Docker sandbox** (default) or **Local terminal** before installation. Docker mode installs/checks Docker and runs a test container. Local mode configures `terminal.backend: local` and skips Docker installation, startup and checks; on Windows it also skips WSL updates and virtualization-feature setup. Existing Docker/WSL installations are left in place. Local terminal commands run directly on your computer with your account's file access.
+
+For the script installer, choose local mode explicitly:
+
+```sh
+HERMES_TERMINAL_BACKEND=local bash scripts/setup-macos-linux.sh
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -TerminalBackend local
+```
+
+Use `docker` instead of `local` for sandbox mode. Both modes install/check native Hermes Desktop, keep Tailscale on the host and configure private TCP 9119 access. The selected terminal backend is restored after the final optional profile wizard.
+
 ## Requirements
 
-- macOS: Apple Silicon is the upstream primary target; Intel source builds are best effort. The installer can install missing Homebrew, Docker Desktop and Tailscale; finish Xcode Command Line Tools/OS dialogs if requested.
-- Linux: 64-bit glibc desktop, systemd user services and Docker access for your user. apt-based distributions get basic dependencies; others need their prerequisites installed separately.
-- Windows: supported Windows 10/11 desktop releases (build 19045 or newer), including Home, Pro, Enterprise and Education; x64 or ARM64, native 64-bit PowerShell, winget and firmware virtualization. Docker Desktop uses its internal WSL2 backend. The installer enables WSL/Virtual Machine Platform prerequisites, asks you to reboot if needed, and installs missing Docker Desktop and Tailscale. It does not enable the full Hyper-V role or require a user Linux distribution. Older Windows and Windows Server are outside this installer path; dependency support still applies.
+- macOS: Apple Silicon is the upstream primary target; Intel source builds are best effort. The installer can install missing Homebrew and Tailscale, plus Docker Desktop when selected; finish Xcode Command Line Tools/OS dialogs if requested.
+- Linux: 64-bit glibc desktop, systemd user services; Docker access for your user is required in Docker mode. apt-based distributions get basic dependencies; others need their prerequisites installed separately.
+- Windows: supported Windows 10/11 desktop releases (build 19045 or newer), including Home, Pro, Enterprise and Education; x64 or ARM64, native 64-bit PowerShell, winget. Docker mode additionally needs firmware virtualization and uses Docker Desktop’s internal WSL2 backend. In that mode the installer enables WSL/Virtual Machine Platform prerequisites, asks you to reboot if needed, and installs missing Docker Desktop. Both modes install missing Tailscale. It does not enable the full Hyper-V role or require a user Linux distribution. Older Windows and Windows Server are outside this installer path; dependency support still applies.
 
 ## What the installer does
 
-1. Check/install prerequisites, verify Docker and run its `hello-world` test.
+1. Check/install prerequisites, verify Docker and run its `hello-world` test only in Docker mode.
 2. Install Tailscale if needed, request sign-in and obtain the machine's tailnet IPv4 address.
 3. Install native Hermes and build Desktop, or reuse an existing Hermes command and build Desktop.
-4. Ask for your profile name and install missing profile files from the bundled template, including your preconfigured SOUL.md. Preserve existing profiles. Configure Docker before starting services; the interactive profile/model wizard runs last.
+4. Ask for your profile name and install missing profile files from the bundled template, including your preconfigured SOUL.md. Preserve existing profiles. Configure the selected terminal backend before starting services; the interactive profile/model wizard runs last.
 5. Ask for your dashboard username, password and confirmation. No default username. Passwords need at least 12 characters; hidden entry is the default and visible entry is optional. The session-signing secret is generated randomly.
 6. Create a user-login backend: launchd (macOS), systemd user service (Linux), or a limited-privilege Scheduled Task (Windows). It uses loopback and requires authentication through its declared Tailscale URL.
 7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Save and print `installation-ready.txt` with separate Docker, Tailscale, Desktop, backend and forwarding results.
@@ -37,17 +53,17 @@ An existing service using local 9119 is left running. The installer selects a fr
 
 An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Normal native workshop data lives under `~/.hermes/profiles/workshop` (macOS/Linux) or `%LOCALAPPDATA%\hermes\profiles\workshop` (Windows).
 
-Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the workshop backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running.
+In Docker mode, Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the workshop backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running when that backend is selected.
 
 ## Attendees: prepare first or start with the installer?
 
-You can start directly with the platform installer. It checks prerequisites and installs missing Docker/Tailscale where supported; you still complete OS approvals and sign-ins. For a smoother workshop, optionally install/open Docker Desktop (Linux: Docker Engine also works), confirm Docker is running and sign into Tailscale beforehand. macOS may need Homebrew and Xcode Command Line Tools. Windows may need firmware virtualization, WSL2 updates and a restart. Neither platform needs a separate Linux computer.
+You can start directly with the platform installer. It checks prerequisites and installs missing Docker/Tailscale where supported; you still complete OS approvals and sign-ins. For a smoother workshop, optionally install/open Docker Desktop (Linux: Docker Engine also works), confirm Docker is running and sign into Tailscale beforehand. macOS may need Homebrew and Xcode Command Line Tools. Windows Docker mode may need firmware virtualization, WSL2 updates and a restart; local-terminal mode skips those steps. Neither platform needs a separate Linux computer.
 
 ## Windows local Desktop
 
 Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your normal account. If asked to restart after WSL2 prerequisites are enabled, restart and run the installer again. Compatible WSL 2.1.5 or newer is reused without an update. If a required WSL update fails with MSI 1603/service errors, close Docker Desktop, save WSL work, restart Windows and rerun as Administrator; check `wsl --version` and the local Temp `wsl-install-logs.txt` if it persists. In Docker Desktop, finish first-run setup and enable Settings > General > Use the WSL 2 based engine. The installer validates a local Docker Desktop WSL2 engine and runs hello-world; a remote Docker engine is rejected. It then installs native Hermes, the workshop profile, your dashboard login and a local backend service, and configures Tailscale TCP access.
 
-There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The Docker engine and backend must run on this PC.
+There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The backend, and Docker engine when selected, run on this PC.
 
 ## Choose your own profile name
 
@@ -59,11 +75,11 @@ For scripted installs, `HERMES_PROFILE_NAME=personal bash scripts/setup-macos-li
 
 ## Profile/model setup runs last
 
-Download/extract the current package and use its launcher. The installer now completes Docker/Tailscale checks, the native Hermes/profile files, dashboard credentials, Desktop build, backend readiness and TCP forwarding before opening the interactive profile/model wizard. Creating the profile files early is required for the backend; this is separate from the interactive wizard.
+Download/extract the current package and use its launcher. The installer now completes the selected terminal/Tailscale checks, the native Hermes/profile files, dashboard credentials, Desktop build, backend readiness and TCP forwarding before opening the interactive profile/model wizard. Creating the profile files early is required for the backend; this is separate from the interactive wizard.
 
-Look for **INSTALLATION CHECKS COMPLETE** and `installation-ready.txt` in the installer state folder. It reports exactly what was checked: Docker hello-world, Tailscale connection/IP, Desktop build, the local backend auth gate and configured TCP 9119 forwarding. It does not prove a real model conversation or access from another tailnet device.
+Look for **INSTALLATION CHECKS COMPLETE** and `installation-ready.txt` in the installer state folder. It reports exactly what was checked: the selected terminal backend (Docker hello-world only in Docker mode), Tailscale connection/IP, Desktop build, the local backend auth gate and configured TCP 9119 forwarding. It does not prove a real model conversation or access from another tailnet device.
 
-Windows opens Desktop, prints/saves readiness and then opens the pending profile wizard in a separate PowerShell window. Close/defer that wizard if you prefer to configure a model in Desktop later. Reopen it through `Configure-Hermes-Profile.ps1` in the same state folder. On macOS/Linux, the wizard runs in the terminal after the same infrastructure summary. Successful/failed wizard cleanup restores the Docker terminal backend and declared dashboard URL.
+Windows opens Desktop, prints/saves readiness and then opens the pending profile wizard in a separate PowerShell window. Close/defer that wizard if you prefer to configure a model in Desktop later. Reopen it through `Configure-Hermes-Profile.ps1` in the same state folder. On macOS/Linux, the wizard runs in the terminal after the same infrastructure summary. Successful/failed wizard cleanup restores the selected terminal backend and declared dashboard URL.
 
 To explicitly defer a pending wizard when rerunning Windows:
 
@@ -115,3 +131,5 @@ Commit the regenerated `downloads/*.zip` and `downloads/SHA256SUMS` with install
 ## Existing Python bootstrap
 
 The pre-existing `bootstrap.sh`, `bootstrap.ps1` and `bootstrap.py` remain available with their own separate behavior: a fresh dedicated home, no bundled persona, preinstalled prerequisites and explicit consent gates. They are not the workshop launcher path. See [the retained bootstrap guide](docs/bootstrap-guide.md) and [VERIFICATION.md](VERIFICATION.md). Existing bootstrap tests and provenance records are retained.
+
+Local terminal mode creates a `workspace` directory inside the selected Hermes profile and sets `terminal.cwd` to that host path. Docker mode uses `/workspace` inside the container. The final optional profile wizard restores both the selected backend and its workspace.

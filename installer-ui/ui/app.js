@@ -9,7 +9,8 @@ function show(name) {
   [...$('steps').children].forEach((li, index) => { if (index === names.indexOf(name)) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); });
   error(); $(name).querySelector('h1').focus(); window.scrollTo(0, 0);
 }
-function settings() { return { profile: $('profile').value.trim(), username: $('username').value.trim(), password: $('password').value, confirm: $('confirm').value, reset: $('reset').checked, accepted: $('accepted').checked }; }
+function terminalBackend() { return document.querySelector('[name=terminal-backend]:checked').value; }
+function settings() { return { terminalBackend: terminalBackend(), profile: $('profile').value.trim(), username: $('username').value.trim(), password: $('password').value, confirm: $('confirm').value, reset: $('reset').checked, accepted: $('accepted').checked }; }
 function valid() {
   if (!$('settings-form').reportValidity()) return false;
   if (/^(default|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test($('profile').value.trim())) { error('Choose another profile name. Default and device names are reserved.'); return false; }
@@ -24,7 +25,7 @@ function renderChecks() {
     content.append(title, detail); li.append(dot, content); $('check-list').append(li);
   }
   $('platform-note').textContent = inspection.platform === 'win32'
-    ? 'Windows uses Docker Desktop’s internal WSL2 engine. No external Linux computer is required. If Windows requests a restart, reopen this wizard afterward.'
+    ? terminalBackend() === 'local' ? 'Local terminal mode runs on Windows directly. The installer skips Docker, WSL2 and virtualization-feature setup.' : 'Windows uses Docker Desktop’s internal WSL2 engine. No external Linux computer is required. If Windows requests a restart, reopen this wizard afterward.'
     : inspection.platform === 'darwin'
       ? 'Mac setup builds Hermes Desktop locally. Intel Macs need the Intel source-build path; an Apple Silicon-only DMG cannot be used. Homebrew and Xcode setup may need your attention.'
       : 'Linux setup currently supports apt-based desktop systems with systemd user services.';
@@ -32,9 +33,10 @@ function renderChecks() {
 }
 function review() {
   const s = settings(); $('review-settings').replaceChildren();
-  for (const [label, value] of [['Profile', s.profile], ['Dashboard username', s.username], ['Password', 'Entered · hidden'], ['Existing login', s.reset ? 'Replace for this profile' : 'Keep if already configured'], ['Terminal', 'Docker sandbox'], ['Private access', 'Tailscale TCP 9119']]) {
+  for (const [label, value] of [['Profile', s.profile], ['Dashboard username', s.username], ['Password', 'Entered · hidden'], ['Existing login', s.reset ? 'Replace for this profile' : 'Keep if already configured'], ['Terminal', s.terminalBackend === 'docker' ? 'Docker sandbox' : 'Local terminal · this computer'], ['Private access', 'Tailscale TCP 9119']]) {
     const row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = label; dd.textContent = value; row.append(dt, dd); $('review-settings').append(row);
   }
+  $('terminal-review').textContent = s.terminalBackend === 'docker' ? 'Docker for the terminal sandbox; a test container must run successfully.' : 'A local terminal that runs commands directly on this computer. Docker and WSL2 setup are skipped.';
   $('accepted').checked = false; $('install').disabled = true; show('review');
 }
 function setStage(name) {
@@ -68,7 +70,7 @@ $('show-password').addEventListener('change', () => { $('password').type = $('co
 $('settings-form').addEventListener('submit', async e => {
   e.preventDefault(); error(); if (!valid()) return;
   $('settings-next').disabled = true;
-  try { inspection = await bridge.inspect(); renderChecks(); show('checks'); } catch (e) { error(e.message); }
+  try { inspection = await bridge.inspect(terminalBackend()); renderChecks(); show('checks'); } catch (e) { error(e.message); }
   finally { $('settings-next').disabled = false; }
 });
 $('checks-next').addEventListener('click', review);
@@ -76,6 +78,7 @@ $('accepted').addEventListener('change', () => { $('install').disabled = !$('acc
 $('install').addEventListener('click', async () => {
   if (running) return;
   const value = settings(); if (!value.accepted) return;
+  $('prerequisites-label').textContent = value.terminalBackend === 'docker' ? 'System prerequisites, Docker and Tailscale' : 'System prerequisites and Tailscale · local terminal';
   $('install').disabled = true; show('installing');
   try { await bridge.start(value); $('password').value = $('confirm').value = ''; $('show-password').checked = false; $('password').type = $('confirm').type = 'password'; }
   catch (e) { running = false; show('settings'); error(e.message); }
@@ -86,11 +89,16 @@ $('manual-prompt').addEventListener('click', () => { $('component-message').text
 $('cancel').addEventListener('click', async () => { if (window.confirm('Stop setup? Components already installed will be kept.')) await bridge.cancel(); });
 $('retry').addEventListener('click', () => { $('accepted').checked = false; $('install').disabled = true; show('settings'); });
 for (const [id, method] of [['open-dashboard', 'openDashboard'], ['open-desktop', 'openDesktop']]) $(id).addEventListener('click', async () => { try { await bridge[method](); } catch (e) { error(e.message); } });
+function updateTerminalSummary() { $('terminal-summary').textContent = terminalBackend() === 'docker' ? 'Docker terminal sandbox' : 'Local terminal · this computer'; }
+document.querySelectorAll('[name=terminal-backend]').forEach(input => input.addEventListener('change', updateTerminalSummary));
 async function initialize() {
   if (!bridge) { $('system').textContent = 'Preview · installation is disabled'; error('Open the packaged Hermes Setup application to install. This browser preview cannot make system changes.'); return; }
   bridge.onEvent(event);
   try {
     inspection = await bridge.inspect(); $('system').textContent = inspection.system;
+    const selectedMode = inspection.defaults.terminalBackend === 'local' ? 'local' : 'docker';
+    document.querySelector('[name=terminal-backend][value=' + selectedMode + ']').checked = true;
+    updateTerminalSummary();
     $('profile').value = inspection.defaults.profile; $('username').value = inspection.defaults.username; $('soul').textContent = inspection.soul;
     $('settings-next').disabled = !inspection.supported; renderChecks();
     if (!inspection.supported) error('This computer is not supported. Review the system checks.');

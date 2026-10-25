@@ -76,7 +76,7 @@ class Installers(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX shell execution; Windows AST checked separately')
     def test_mock_install_rerun_and_failure_paths(self):
         for platform in ('Linux', 'Darwin'):
-            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile', 'custom-profile', 'explicit-profile'):
+            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile', 'custom-profile', 'explicit-profile', 'local-terminal'):
                 with self.subTest(platform=platform, failure=failure), tempfile.TemporaryDirectory() as tmp:
                     fixture = Path(tmp)
                     # Child-process fixture home only; never touches the real user's home.
@@ -107,6 +107,11 @@ class Installers(unittest.TestCase):
                     env.pop('HERMES_RESET_DASHBOARD_AUTH', None)
                     env.pop('HERMES_BACKEND_PORT', None)
                     env.pop('HERMES_SKIP_PROFILE_SETUP', None)
+                    env.pop('HERMES_TERMINAL_BACKEND', None)
+                    terminal_backend = 'local' if failure == 'local-terminal' else 'docker'
+                    if failure == 'local-terminal':
+                        env['HERMES_TERMINAL_BACKEND'] = 'local'
+                        env['MOCK_FAIL'] = 'docker'
                     if failure == 'skip-profile':
                         env['HERMES_SKIP_PROFILE_SETUP'] = '1'
                     if failure == 'explicit-busy':
@@ -133,6 +138,9 @@ class Installers(unittest.TestCase):
                         continue
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn(forward, calls)
+                    if failure == 'local-terminal':
+                        self.assertFalse(any(c[0] == 'docker' or c == ['open', '-a', 'Docker'] or (c[0] == 'brew' and 'docker' in c) or (c[0] == 'apt-get' and 'docker.io' in c) for c in calls))
+                        self.assertIn('Docker: not required (local terminal)', (user_home / '.hermes-workshop-installer' / selected_profile / 'installation-ready.txt').read_text())
                     wizard = ['hermes', '-p', selected_profile, 'setup']
                     if failure == 'skip-profile':
                         self.assertNotIn(wizard, calls)
@@ -142,7 +150,11 @@ class Installers(unittest.TestCase):
                     ready_state = user_home / '.hermes-workshop-installer' / selected_profile / 'installation-ready.txt'
                     self.assertIn('INSTALLATION CHECKS COMPLETE', ready_state.read_text())
 
-                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'terminal.backend', 'docker'], calls)
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'terminal.backend', terminal_backend], calls)
+                    expected_cwd = str(user_home / '.hermes/profiles' / selected_profile / 'workspace') if terminal_backend == 'local' else '/workspace'
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'terminal.cwd', expected_cwd], calls)
+                    if terminal_backend == 'local':
+                        self.assertTrue(Path(expected_cwd).is_dir())
                     self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:9119'], calls)
                     credentials = user_home / '.hermes-workshop-installer' / selected_profile / 'dashboard-login.txt'
                     if failure == 'fresh-install':
@@ -158,6 +170,10 @@ class Installers(unittest.TestCase):
                     custom_soul.write_text('Keep the user customization.')
                     result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input='' if failure == 'explicit-profile' else '\n', capture_output=True, text=True, timeout=30)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    rerun_calls = [json.loads(line) for line in log.read_text().splitlines()]
+                    if failure == 'local-terminal':
+                        self.assertFalse(any(c[0] == 'docker' for c in rerun_calls))
+                        self.assertFalse(any(c[-2:] == ['terminal.backend', 'docker'] for c in rerun_calls))
                     self.assertEqual(credentials.read_text(), old_credentials)
                     self.assertEqual(custom_soul.read_text(), 'Keep the user customization.')
                     self.assertEqual((user_home / '.hermes-workshop-installer/_bootstrap/last-profile').read_text().strip(), selected_profile)

@@ -11,6 +11,8 @@ function validateSettings(input) {
   const profile = rawProfile.trim();
   const username = rawUsername.trim();
   const password = String(input.password || '');
+  const terminalBackend = input.terminalBackend === undefined ? 'docker' : input.terminalBackend;
+  if (!['docker', 'local'].includes(terminalBackend)) throw new Error('Choose Docker sandbox or local terminal.');
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(profile) || RESERVED.test(profile)) {
     throw new Error('Profile name: use 1–64 letters, digits, underscores or hyphens, starting with a letter or digit. Default and device names are reserved.');
   }
@@ -18,7 +20,7 @@ function validateSettings(input) {
   if (password.length < 12 || password.length > 256 || /[\x00-\x1f\x7f]/.test(password)) throw new Error('Use a password of 12–256 characters without line breaks or control characters.');
   if (password !== input.confirm) throw new Error('The passwords do not match.');
   if (input.accepted !== true) throw new Error('Review and accept the installation choices first.');
-  return { profile, username, password, reset: input.reset === true };
+  return { profile, username, password, reset: input.reset === true, terminalBackend };
 }
 
 function stripTerminal(value) {
@@ -68,12 +70,12 @@ class CredentialPrompts {
 function installCommand(settings, root, platform = process.platform) {
   if (platform === 'win32') return {
     file: 'powershell.exe',
-    args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'setup-windows.ps1'), '-ProfileName', settings.profile, '-SkipProfileSetup', ...(settings.reset ? ['-ResetDashboardAuth'] : [])]
+    args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'setup-windows.ps1'), '-ProfileName', settings.profile, '-TerminalBackend', settings.terminalBackend || 'docker', '-SkipProfileSetup', ...(settings.reset ? ['-ResetDashboardAuth'] : [])]
   };
   return { file: '/bin/bash', args: [path.join(root, 'setup-macos-linux.sh')] };
 }
 function installEnvironment(settings, inherited = process.env) {
-  return { ...inherited, HERMES_PROFILE_NAME: settings.profile, HERMES_SKIP_PROFILE_SETUP: '1', HERMES_RESET_DASHBOARD_AUTH: settings.reset ? '1' : '0', TERM: 'xterm-256color' };
+  return { ...inherited, HERMES_PROFILE_NAME: settings.profile, HERMES_TERMINAL_BACKEND: settings.terminalBackend || 'docker', HERMES_SKIP_PROFILE_SETUP: '1', HERMES_RESET_DASHBOARD_AUTH: settings.reset ? '1' : '0', TERM: 'xterm-256color' };
 }
 function readinessPath(profile, platform = process.platform, env = process.env) {
   return platform === 'win32'
@@ -84,7 +86,7 @@ function stageFromLine(line) {
   if (/INSTALLATION CHECKS COMPLETE/.test(line)) return 'verify';
   if (/serve status|Ready: http:|Tailnet URL:|Tailscale TCP 9119/.test(line)) return 'network';
   if (/Building\/checking Hermes Desktop|build-only|building.*desktop/i.test(line)) return 'desktop';
-  if (/Using Hermes profile:|Configuring the local Docker|Choose your Hermes dashboard login|Keeping existing profile:/.test(line)) return 'profile';
+  if (/Using Hermes profile:|Configuring the (?:docker|local) terminal|Choose your Hermes dashboard login|Keeping existing profile:/.test(line)) return 'profile';
   if (/Hermes Agent Installer|Hermes Agent cloned|Installing the latest stable/.test(line)) return 'runtime';
   return null;
 }
