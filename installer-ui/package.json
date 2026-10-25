@@ -1,0 +1,34 @@
+{
+  "name": "hermes-setup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guided local Hermes, Docker sandbox and Tailscale installation",
+  "author": "Ben",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "postinstall": "electron-builder install-app-deps",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": { "node-pty": "1.1.0" },
+  "devDependencies": { "electron": "45.0.0", "electron-builder": "26.18.0" },
+  "build": {
+    "appId": "com.benczb.hermes.setup",
+    "productName": "Hermes Setup",
+    "asar": true,
+    "asarUnpack": ["node_modules/node-pty/**"],
+    "files": ["*.cjs", "ui/**", "package.json"],
+    "extraResources": [
+      { "from": "../scripts/setup-macos-linux.sh", "to": "installer/setup-macos-linux.sh" },
+      { "from": "../scripts/setup-windows.ps1", "to": "installer/setup-windows.ps1" },
+      { "from": "../profiles/workshop/SOUL.md", "to": "installer/SOUL.md" }
+    ],
+    "artifactName": "Hermes-Setup-${version}-${os}-${arch}.${ext}",
+    "mac": { "category": "public.app-category.utilities", "target": ["zip"], "identity": null },
+    "win": { "target": ["portable"], "requestedExecutionLevel": "requireAdministrator" },
+    "linux": { "target": ["AppImage"], "category": "Utility" }
+  }
+}

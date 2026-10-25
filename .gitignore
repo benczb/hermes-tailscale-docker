@@ -6,3 +6,7 @@ home/config.yaml
 home/.env
 *.partial
 work/
+
+# Graphical installer build output
+installer-ui/node_modules/
+installer-ui/dist/

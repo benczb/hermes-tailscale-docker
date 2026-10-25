@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Hermes Setup</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header><div class="brand"><span class="symbol" aria-hidden="true">☤</span><span>Hermes <b>Setup</b></span></div><span id="system" class="system">Checking this computer…</span></header>
+  <div class="layout">
+    <aside aria-label="Setup progress">
+      <p class="eyebrow">YOUR LOCAL SETUP</p>
+      <ol id="steps">
+        <li aria-current="step"><span>1</span><div>Your settings<small>Profile and dashboard login</small></div></li>
+        <li><span>2</span><div>System checks<small>Know what needs attention</small></div></li>
+        <li><span>3</span><div>Review<small>Approve before changes</small></div></li>
+        <li><span>4</span><div>Installation<small>Follow each component</small></div></li>
+        <li><span>5</span><div>Ready to connect<small>Verify and open Hermes</small></div></li>
+      </ol>
+      <div class="architecture"><b>On this computer</b><p>Hermes Desktop + native agent</p><p>Docker terminal sandbox</p><p>Tailscale private access</p></div>
+    </aside>
+    <main>
+      <div id="error" role="alert" hidden></div>
+      <section id="settings" aria-labelledby="settings-title">
+        <p class="eyebrow">01 / YOUR SETTINGS</p>
+        <h1 id="settings-title" tabindex="-1">Make Hermes yours.</h1>
+        <p class="intro">Choose your profile and login first. Nothing is installed until you review and start setup.</p>
+        <form id="settings-form">
+          <label for="profile">Profile name</label>
+          <input id="profile" name="profile" required maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}" autocomplete="off" placeholder="e.g. hamburger" aria-describedby="profile-help">
+          <p id="profile-help" class="help">Letters, numbers, underscores and hyphens. Existing profiles are preserved.</p>
+          <label for="username">Dashboard username</label>
+          <input id="username" name="username" required maxlength="128" autocomplete="username" placeholder="Choose your username" aria-describedby="login-help">
+          <p id="login-help" class="help">A Hermes login, separate from your computer or Tailscale account.</p>
+          <div class="field-pair">
+            <div><label for="password">Dashboard password</label><input id="password" name="password" type="password" required minlength="12" maxlength="256" autocomplete="new-password" aria-describedby="password-help"></div>
+            <div><label for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></div>
+          </div>
+          <div class="password-options"><p id="password-help" class="help">At least 12 characters.</p><label class="check"><input id="show-password" type="checkbox"> Show passwords</label></div>
+          <label class="check option"><input id="reset" type="checkbox"><span>Replace this profile’s existing dashboard login<small>Leave off to keep an existing login. New profiles use the login above.</small></span></label>
+          <div class="note">Your settings stay on this computer. This wizard does not save your password for restart/resume. Hermes stores its dashboard credentials in its protected local profile.</div>
+          <footer><span class="footnote">No preset admin account.</span><button id="settings-next" type="submit" disabled>Check this computer <span aria-hidden="true">→</span></button></footer>
+        </form>
+      </section>
+      <section id="checks" hidden aria-labelledby="checks-title">
+        <p class="eyebrow">02 / SYSTEM CHECKS</p><h1 id="checks-title" tabindex="-1">A clear starting point.</h1>
+        <p class="intro">These checks only inspect your computer. Missing components are handled during installation.</p>
+        <ul id="check-list" class="check-list"></ul>
+        <div id="platform-note" class="note"></div>
+        <footer><button class="secondary" data-back="settings">Back</button><button id="checks-next">Review installation <span aria-hidden="true">→</span></button></footer>
+      </section>
+      <section id="review" hidden aria-labelledby="review-title">
+        <p class="eyebrow">03 / REVIEW</p><h1 id="review-title" tabindex="-1">Your setup, at a glance.</h1>
+        <p class="intro">The installer will use these choices without asking for your profile or dashboard login again.</p>
+        <dl id="review-settings" class="review-list"></dl>
+        <h2>What will be installed or reused</h2>
+        <ul class="plain-list"><li>Native Hermes runtime and a local Desktop build.</li><li>Docker for the terminal sandbox; a test container must run successfully.</li><li>Host Tailscale, authenticated Hermes backend and private TCP port 9119.</li><li>A service that starts the backend when you log in.</li></ul>
+        <details class="soul"><summary>Included profile: Safe Agent Starter · view SOUL.md</summary><pre id="soul"></pre></details>
+        <p class="help">Choose your AI provider and model in Hermes Desktop after installation. Account sign-in, administrator approval and required restarts may need your attention during setup.</p>
+        <label class="check option"><input id="accepted" type="checkbox"><span>I approve installing or updating these components and configuring private Tailscale access.</span></label>
+        <footer><button class="secondary" data-back="checks">Back</button><button id="install" disabled>Install Hermes <span aria-hidden="true">→</span></button></footer>
+      </section>
+      <section id="installing" hidden aria-labelledby="installing-title">
+        <p class="eyebrow">04 / INSTALLATION</p><h1 id="installing-title" tabindex="-1">Building your workspace.</h1>
+        <p id="progress-copy" class="intro" role="status">Starting the installer. Keep this window open.</p>
+        <ul id="install-stages" class="install-stages">
+          <li data-stage="prerequisites"><span class="indicator"></span><span>System prerequisites, Docker and Tailscale</span><small>Waiting</small></li>
+          <li data-stage="runtime"><span class="indicator"></span><span>Native Hermes runtime</span><small>Waiting</small></li>
+          <li data-stage="profile"><span class="indicator"></span><span>Profile and dashboard login</span><small>Waiting</small></li>
+          <li data-stage="desktop"><span class="indicator"></span><span>Hermes Desktop build and backend</span><small>Waiting</small></li>
+          <li data-stage="network"><span class="indicator"></span><span>Tailscale TCP forwarding</span><small>Waiting</small></li>
+          <li data-stage="verify"><span class="indicator"></span><span>Installation report</span><small>Waiting</small></li>
+        </ul>
+        <form id="component-input" class="note" hidden><h2>One component needs your attention</h2><p id="component-message"></p><label for="component-answer">Response</label><input id="component-answer" type="password" autocomplete="off"><p class="help">For a “Press Return” prompt, leave this blank and continue. Your response is hidden from the activity log.</p><button type="submit">Continue setup</button></form>
+        <p class="help">Follow any Docker, Tailscale, Apple or Windows dialogs that open. On Intel Macs, the first Desktop build can take several minutes.</p>
+        <details id="activity"><summary>Installation details</summary><pre id="log" tabindex="0" aria-label="Installation activity"></pre><button id="manual-prompt" class="secondary small">A component is waiting for input</button></details>
+        <footer><span class="footnote">Completed components are kept if setup stops.</span><button id="cancel" class="secondary">Stop installation</button></footer>
+      </section>
+      <section id="finished" hidden aria-labelledby="finished-title">
+        <p class="eyebrow">05 / VERIFICATION</p><h1 id="finished-title" tabindex="-1">Installation checks complete.</h1>
+        <p id="finished-copy" class="intro"></p>
+        <div id="connection" class="connection" hidden><span>YOUR PRIVATE HERMES ADDRESS</span><strong id="dashboard-address"></strong><p>Open this address from another device connected to your tailnet to verify remote access. Tailnet access rules still apply.</p></div>
+        <pre id="report" class="report"></pre>
+        <div id="final-note" class="note"></div>
+        <footer><button id="retry" class="secondary">Review settings / retry</button><div class="actions"><button id="open-dashboard" class="secondary" hidden>Open dashboard</button><button id="open-desktop" hidden>Open Hermes Desktop</button></div></footer>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

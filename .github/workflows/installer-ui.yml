@@ -1,0 +1,54 @@
+name: Graphical installer preview
+on:
+  push:
+    paths: ['installer-ui/**', 'scripts/setup-macos-linux.sh', 'scripts/setup-windows.ps1', 'profiles/**', '.github/workflows/installer-ui.yml']
+  pull_request:
+    paths: ['installer-ui/**', 'scripts/setup-macos-linux.sh', 'scripts/setup-windows.ps1', 'profiles/**', '.github/workflows/installer-ui.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            args: --win --x64
+          - os: macos-15-intel
+            platform: macos-x64
+            args: --mac --x64
+          - os: macos-latest
+            platform: macos-arm64
+            args: --mac --arm64
+          - os: ubuntu-latest
+            platform: linux-x64
+            args: --linux --x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: installer-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: installer-ui/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Smoke-test native PTY using Electron's runtime
+        run: node test/pty-smoke.cjs
+      - name: Build unsigned preview application
+        run: npm run dist -- ${{ matrix.args }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-setup-preview-${{ matrix.platform }}
+          path: |
+            installer-ui/dist/*.zip
+            installer-ui/dist/*.exe
+            installer-ui/dist/*.AppImage
+          if-no-files-found: error
