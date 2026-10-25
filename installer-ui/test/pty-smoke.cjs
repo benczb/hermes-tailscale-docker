@@ -13,7 +13,10 @@ const pty = require('node-pty');
 const { CredentialPrompts, PrivateTranscript } = require('../core.cjs');
 const settings = { username: 'smoke-user', password: 'private-smoke-password' };
 const log = [], transcript = new PrivateTranscript([settings.password], line => log.push(line));
-const child = pty.spawn(process.execPath, [path.join(__dirname, 'pty-fixture.cjs')], {
+const command = process.platform === 'win32'
+  ? { file: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'pty-fixture.ps1')] }
+  : { file: process.execPath, args: [path.join(__dirname, 'pty-fixture.cjs')] };
+const child = pty.spawn(command.file, command.args, {
   cols: 120, rows: 40, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, cwd: __dirname
 });
 const prompts = new CredentialPrompts(settings, answer => child.write(answer));
@@ -22,7 +25,7 @@ child.onData(chunk => { transcript.push(chunk); prompts.push(chunk); });
 child.onExit(({ exitCode }) => {
   clearTimeout(deadline); transcript.finish(); prompts.clear();
   assert.equal(exitCode, 0, log.join('\n'));
-  assert.ok(log.join('\n').includes('PRESETS_OK'));
+  assert.ok(log.join('\n').includes('PRESETS_OK'), 'Missing completion marker. Redacted output: ' + JSON.stringify(log));
   assert.ok(!log.join('\n').includes(settings.password));
   console.log('Electron native PTY: preset bridge and output redaction passed.');
 });
