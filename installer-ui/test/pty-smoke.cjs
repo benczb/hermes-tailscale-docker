@@ -28,4 +28,7 @@ child.onExit(({ exitCode }) => {
   assert.ok(log.join('\n').includes('PRESETS_OK'), 'Missing completion marker. Redacted output: ' + JSON.stringify(log));
   assert.ok(!log.join('\n').includes(settings.password));
   console.log('Electron native PTY: preset bridge and output redaction passed.');
+  // ConPTY retains background pipe handles after the child exits. End this
+  // standalone smoke worker only after every completion assertion has passed.
+  process.exit(0);
 });
