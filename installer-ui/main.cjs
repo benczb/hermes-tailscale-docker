@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const core = require('./core.cjs');
+const { officialInstaller, officialInstallation } = require('./official.cjs');
 const exec = promisify(execFile);
 let window, task, transcript, prompts, activeProfile, dashboardUrl, canceled = false, awaitingInput = false, starting = false;
 const root = () => app.isPackaged ? path.join(process.resourcesPath, 'installer') : path.resolve(__dirname, '../scripts');
@@ -35,21 +36,24 @@ async function inspect(requestedMode) {
   if (!['docker', 'local'].includes(terminalBackend)) throw new Error('Choose Docker sandbox or local terminal.');
   const platform = process.platform;
   const supported = ['win32', 'darwin', 'linux'].includes(platform) && ['x64', 'arm64'].includes(os.arch()) && !(platform === 'linux' && /microsoft|wsl/i.test(os.release()));
-  const [docker, tailscale, hermes, brew, wsl] = await Promise.all([
+  const [docker, tailscale, hermes, brew, wsl, bundled] = await Promise.all([
     terminalBackend === 'docker' ? probe('docker', ['info', '--format', '{{.OSType}}']) : Promise.resolve(null),
     probe(platform === 'darwin' ? '/Applications/Tailscale.app/Contents/MacOS/Tailscale' : 'tailscale', ['status', '--json']),
     platform === 'win32'
       ? probe('powershell.exe', ['-NoProfile', '-Command', 'if (Get-Command hermes -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'])
       : probe('/usr/bin/which', ['hermes']),
     platform === 'darwin' ? probe('brew', ['--version']) : Promise.resolve(null),
-    platform === 'win32' && terminalBackend === 'docker' ? probe('wsl.exe', ['--version']) : Promise.resolve(null)
+    platform === 'win32' && terminalBackend === 'docker' ? probe('wsl.exe', ['--version']) : Promise.resolve(null),
+    platform === 'win32' ? probe('powershell.exe', ['-NoProfile', '-Command', "if (Get-AppxPackage | Where-Object { $_.Name -match '^NousResearch(Inc)?[.]Hermes' }) { exit 0 } else { exit 1 }"]) : Promise.resolve(null)
   ]);
   let tailConnected = false;
   try { tailConnected = JSON.parse(tailscale.output).BackendState === 'Running'; } catch {}
   const soulPath = app.isPackaged ? path.join(root(), 'SOUL.md') : path.resolve(__dirname, '../profiles/workshop/SOUL.md');
+  const official = await officialInstallation({ cliAvailable: hermes.ok, bundledAppDetected: bundled?.ok === true });
   return {
     platform, architecture: os.arch(), system: `${os.type()} ${os.release()} · ${os.arch()}`, supported,
-    defaults: { profile: saved.profile || '', username: saved.username || '', reset: false, terminalBackend },
+    defaults: { profile: saved.profile || '', username: saved.username || '', reset: false, terminalBackend, desktopInstall: saved.desktopInstall === 'source' ? 'source' : 'official', accessPort: Number.isInteger(saved.accessPort) && saved.accessPort >= 1024 && saved.accessPort <= 65535 ? saved.accessPort : 9119 },
+    official,
     checks: [
       { title: 'This computer', status: supported ? 'ready' : 'blocked', detail: supported ? 'Native installation on this computer.' : 'Use a native 64-bit Windows, macOS or Linux desktop; WSL is not the installer host.' },
       ...(wsl ? [{ title: 'Windows WSL2', status: 'check', detail: wsl.ok ? 'Detected. The installer will check compatibility and update if needed; a restart may be required.' : 'The installer will enable or update WSL2 for Docker. A restart may be required.' }] : []),
@@ -73,12 +77,18 @@ handler('setup:start', async input => {
   canceled = false;
   try {
   const settings = core.validateSettings(input);
-  if (!(await inspect(settings.terminalBackend)).supported) throw new Error('This computer is not supported.');
+  const inspection = await inspect(settings.terminalBackend);
+  if (!inspection.supported) throw new Error('This computer is not supported.');
+  if (inspection.official.blocked || inspection.official.inProgress) throw new Error(inspection.official.message);
   if (canceled) throw new Error('Installation canceled before changes were made.');
   if (process.platform !== 'win32' && process.getuid?.() === 0) throw new Error('Open Hermes Setup using your normal desktop account, not root.');
   // No password is serialized, passed in argv/environment or saved for resume.
   await fs.mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 });
-  await fs.writeFile(path.join(app.getPath('userData'), 'settings.json'), JSON.stringify({ profile: settings.profile, username: settings.username, terminalBackend: settings.terminalBackend }), { mode: 0o600 });
+  await fs.writeFile(path.join(app.getPath('userData'), 'settings.json'), JSON.stringify({ profile: settings.profile, username: settings.username, terminalBackend: settings.terminalBackend, desktopInstall: settings.desktopInstall, accessPort: settings.accessPort }), { mode: 0o600 });
+  if (settings.desktopInstall === 'official') {
+    if (!inspection.official.supported || inspection.official.blocked) throw new Error(inspection.official.message);
+    if (!inspection.official.ready) return { officialRequired: true, message: inspection.official.message };
+  }
   activeProfile = settings.profile;
   dashboardUrl = null;
   canceled = false;
@@ -111,7 +121,8 @@ handler('setup:start', async input => {
     try {
       const report = await fs.readFile(core.readinessPath(activeProfile), 'utf8');
       if (!report.includes('INSTALLATION CHECKS COMPLETE')) throw new Error('Missing completion report.');
-      const url = report.match(/Tailnet URL: (http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}:9119)/)?.[1];
+      const url = report.match(/Tailnet URL: (http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})\s*(?:\r?\n|$)/)?.[1];
+      if (url && Number(new URL(url).port) !== settings.accessPort) throw new Error('The completion report uses another access port.');
       dashboardUrl = url || null;
       send({ type: 'finished', ok: true, report, url: dashboardUrl });
     } catch { send({ type: 'finished', ok: false, message: 'The setup process exited, but its verification report is missing. Completion has not been confirmed.' }); }
@@ -126,6 +137,14 @@ handler('setup:respond', input => {
   send({ type: 'input-cleared' });
 });
 handler('setup:cancel', () => { if (starting || task) canceled = true; if (task) task.kill(); });
+handler('setup:original-installer', async () => {
+  if (task || starting) throw new Error('Wait for the current setup operation.');
+  const installer = officialInstaller();
+  if (!installer.supported) throw new Error(installer.label);
+  const inspection = await inspect('local');
+  if (inspection.official.blocked || inspection.official.inProgress) throw new Error(inspection.official.message);
+  await shell.openExternal(installer.url);
+});
 handler('setup:dashboard', async () => { if (!dashboardUrl) throw new Error('No verified dashboard address is available.'); await shell.openExternal(dashboardUrl); });
 handler('setup:desktop', async () => {
   if (task || !activeProfile || !dashboardUrl) throw new Error('Complete installation first.');
@@ -137,7 +156,7 @@ handler('setup:desktop', async () => {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(() => {
-  window = new BrowserWindow({ width: 1060, height: 820, minWidth: 760, minHeight: 650, title: 'Hermes Setup', backgroundColor: '#f6f7f9', autoHideMenuBar: true,
+  window = new BrowserWindow({ width: 1060, height: 820, minWidth: 760, minHeight: 650, title: 'Hermes Setup Companion', backgroundColor: '#f6f7f9', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());

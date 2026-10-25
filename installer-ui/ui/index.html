@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Hermes Setup</title>
+  <title>Hermes Setup Companion</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
 <body>
-  <header><div class="brand"><span class="symbol" aria-hidden="true">☤</span><span>Hermes <b>Setup</b></span></div><span id="system" class="system">Checking this computer…</span></header>
+  <header><div class="brand"><span class="symbol" aria-hidden="true">☤</span><span>Hermes <b>Companion</b></span></div><span id="system" class="system">Checking this computer…</span></header>
   <div class="layout">
     <aside aria-label="Setup progress">
       <p class="eyebrow">YOUR LOCAL SETUP</p>
@@ -30,13 +30,28 @@
         <p class="intro">Choose your profile and login first. Nothing is installed until you review and start setup.</p>
         <form id="settings-form">
           <fieldset class="terminal-choice">
+            <legend>How should Hermes Desktop be installed?</legend>
+            <label><input type="radio" name="desktop-install" value="official" checked><span><b>Original Hermes Desktop installer</b><small>Nous Research’s installer handles Hermes setup and dependencies. This companion configures your profile and Tailscale afterward.</small></span></label>
+            <label><input type="radio" name="desktop-install" value="source"><span><b>Source build · advanced alternative</b><small>Use the official CLI installer and build Desktop locally. For platforms without an original Desktop installer; compiler dependencies may be needed.</small></span></label>
+          </fieldset>
+          <p class="help">(Default: Original Hermes Desktop installer on supported platforms)</p>
+          <p id="desktop-support-note" class="help"></p>
+          <fieldset class="terminal-choice">
             <legend>Where should terminal commands run?</legend>
             <label><input type="radio" name="terminal-backend" value="docker" checked><span><b>Docker sandbox</b><small>Run terminal commands in a container. Windows uses WSL2 for Docker.</small></span></label>
             <label><input type="radio" name="terminal-backend" value="local"><span><b>Local terminal</b><small>Run commands directly on this computer with your account’s access. No Docker or WSL2 setup.</small></span></label>
           </fieldset>
-          <label for="profile">Profile name</label>
-          <input id="profile" name="profile" required maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}" autocomplete="off" placeholder="e.g. hamburger" aria-describedby="profile-help">
-          <p id="profile-help" class="help">Letters, numbers, underscores and hyphens. Existing profiles are preserved.</p>
+          <p class="help">(Default: Docker sandbox — terminal commands only)</p>
+          <div class="field-pair">
+            <div><label for="profile">Profile name</label>
+              <input id="profile" name="profile" required maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}" autocomplete="off" placeholder="e.g. hamburger" aria-describedby="profile-help">
+              <p id="profile-help" class="help">Choose your own name. Existing profiles are preserved.</p>
+            </div>
+            <div><label for="access-port">Tailscale TCP port</label>
+              <input id="access-port" name="access-port" type="number" value="9119" min="1024" max="65535" step="1" required aria-describedby="port-help">
+              <p id="port-help" class="help">(Default: 9119) Devices connect to this private port. The local backend may use a different free port.</p>
+            </div>
+          </div>
           <label for="username">Dashboard username</label>
           <input id="username" name="username" required maxlength="128" autocomplete="username" placeholder="Choose your username" aria-describedby="login-help">
           <p id="login-help" class="help">A Hermes login, separate from your computer or Tailscale account.</p>
@@ -44,8 +59,8 @@
             <div><label for="password">Dashboard password</label><input id="password" name="password" type="password" required minlength="12" maxlength="256" autocomplete="new-password" aria-describedby="password-help"></div>
             <div><label for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></div>
           </div>
-          <div class="password-options"><p id="password-help" class="help">At least 12 characters.</p><label class="check"><input id="show-password" type="checkbox"> Show passwords</label></div>
-          <label class="check option"><input id="reset" type="checkbox"><span>Replace this profile’s existing dashboard login<small>Leave off to keep an existing login. New profiles use the login above.</small></span></label>
+          <div class="password-options"><p id="password-help" class="help">At least 12 characters. (Default: hidden)</p><label class="check"><input id="show-password" type="checkbox"> Show passwords</label></div>
+          <label class="check option"><input id="reset" type="checkbox"><span>Replace this profile’s existing dashboard login<small>(Default: keep existing login) New profiles use the login above.</small></span></label>
           <div class="note">Your settings stay on this computer. This wizard does not save your password for restart/resume. Hermes stores its dashboard credentials in its protected local profile.</div>
           <footer><span class="footnote">No preset admin account.</span><button id="settings-next" type="submit" disabled>Check this computer <span aria-hidden="true">→</span></button></footer>
         </form>
@@ -62,25 +77,33 @@
         <p class="intro">The installer will use these choices without asking for your profile or dashboard login again.</p>
         <dl id="review-settings" class="review-list"></dl>
         <h2>What will be installed or reused</h2>
-        <ul class="plain-list"><li>Native Hermes runtime and a local Desktop build.</li><li id="terminal-review">Docker for the terminal sandbox; a test container must run successfully.</li><li>Host Tailscale, authenticated Hermes backend and private TCP port 9119.</li><li>A service that starts the backend when you log in.</li></ul>
+        <ul class="plain-list"><li id="desktop-review">The original Hermes Desktop installer handles the app and its runtime.</li><li id="terminal-review">Docker for the terminal sandbox; a test container must run successfully.</li><li id="network-review">Host Tailscale, authenticated Hermes backend and private TCP port 9119.</li><li>A service that starts the backend when you log in.</li></ul>
         <details class="soul"><summary>Included profile: Safe Agent Starter · view SOUL.md</summary><pre id="soul"></pre></details>
         <p class="help">Choose your AI provider and model in Hermes Desktop after installation. Account sign-in, administrator approval and required restarts may need your attention during setup.</p>
         <label class="check option"><input id="accepted" type="checkbox"><span>I approve installing or updating these components and configuring private Tailscale access.</span></label>
         <footer><button class="secondary" data-back="checks">Back</button><button id="install" disabled>Install Hermes <span aria-hidden="true">→</span></button></footer>
       </section>
       <section id="installing" hidden aria-labelledby="installing-title">
-        <p class="eyebrow">04 / INSTALLATION</p><h1 id="installing-title" tabindex="-1">Building your workspace.</h1>
+        <p class="eyebrow">04 / INSTALLATION</p><h1 id="installing-title" tabindex="-1">Setting up your workspace.</h1>
         <p id="progress-copy" class="intro" role="status">Starting the installer. Keep this window open.</p>
+        <div id="original-handoff" class="note" hidden>
+          <h2>Use the original Hermes Desktop installer</h2>
+          <p id="original-message"></p>
+          <ol class="handoff-steps"><li>Download and open the original installer from Nous Research.</li><li>Complete its installation, including Desktop, and open Hermes once.</li><li>Return here. The companion will configure the existing installation.</li></ol>
+          <button id="open-original">Download original installer</button>
+          <button id="check-original" class="secondary">I’ve finished — check again</button>
+          <p class="help">No second Hermes checkout or companion Desktop build will be started in this mode. If the original installer fails, use its own repair path before continuing.</p>
+        </div>
         <ul id="install-stages" class="install-stages">
           <li data-stage="prerequisites"><span class="indicator"></span><span id="prerequisites-label">System prerequisites, Docker and Tailscale</span><small>Waiting</small></li>
           <li data-stage="runtime"><span class="indicator"></span><span>Native Hermes runtime</span><small>Waiting</small></li>
           <li data-stage="profile"><span class="indicator"></span><span>Profile and dashboard login</span><small>Waiting</small></li>
-          <li data-stage="desktop"><span class="indicator"></span><span>Hermes Desktop build and backend</span><small>Waiting</small></li>
+          <li data-stage="desktop"><span class="indicator"></span><span id="desktop-stage-label">Hermes Desktop and backend</span><small>Waiting</small></li>
           <li data-stage="network"><span class="indicator"></span><span>Tailscale TCP forwarding</span><small>Waiting</small></li>
           <li data-stage="verify"><span class="indicator"></span><span>Installation report</span><small>Waiting</small></li>
         </ul>
         <form id="component-input" class="note" hidden><h2>One component needs your attention</h2><p id="component-message"></p><label for="component-answer">Response</label><input id="component-answer" type="password" autocomplete="off"><p class="help">For a “Press Return” prompt, leave this blank and continue. Your response is hidden from the activity log.</p><button type="submit">Continue setup</button></form>
-        <p class="help">Follow any Docker, Tailscale, Apple or Windows dialogs that open. On Intel Macs, the first Desktop build can take several minutes.</p>
+        <p id="component-help" class="help">Follow any Docker, Tailscale, Apple or Windows dialogs that open.</p>
         <details id="activity"><summary>Installation details</summary><pre id="log" tabindex="0" aria-label="Installation activity"></pre><button id="manual-prompt" class="secondary small">A component is waiting for input</button></details>
         <footer><span class="footnote">Completed components are kept if setup stops.</span><button id="cancel" class="secondary">Stop installation</button></footer>
       </section>

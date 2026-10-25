@@ -76,7 +76,7 @@ class Installers(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX shell execution; Windows AST checked separately')
     def test_mock_install_rerun_and_failure_paths(self):
         for platform in ('Linux', 'Darwin'):
-            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile', 'custom-profile', 'explicit-profile', 'local-terminal'):
+            for failure in ('', 'docker', 'auth', 'custom-home', 'fresh-install', 'occupied-port', 'explicit-busy', 'skip-profile', 'custom-profile', 'explicit-profile', 'local-terminal', 'official-reuse', 'custom-port'):
                 with self.subTest(platform=platform, failure=failure), tempfile.TemporaryDirectory() as tmp:
                     fixture = Path(tmp)
                     # Child-process fixture home only; never touches the real user's home.
@@ -108,6 +108,11 @@ class Installers(unittest.TestCase):
                     env.pop('HERMES_BACKEND_PORT', None)
                     env.pop('HERMES_SKIP_PROFILE_SETUP', None)
                     env.pop('HERMES_TERMINAL_BACKEND', None)
+                    env.pop('HERMES_USE_EXISTING_DESKTOP', None)
+                    env.pop('HERMES_TAILNET_PORT', None)
+                    access_port = '9234' if failure == 'custom-port' else '9119'
+                    if failure == 'custom-port': env['HERMES_TAILNET_PORT'] = access_port
+                    if failure == 'official-reuse': env['HERMES_USE_EXISTING_DESKTOP'] = '1'
                     terminal_backend = 'local' if failure == 'local-terminal' else 'docker'
                     if failure == 'local-terminal':
                         env['HERMES_TERMINAL_BACKEND'] = 'local'
@@ -127,11 +132,11 @@ class Installers(unittest.TestCase):
                     answers = profile_answers + answers
                     result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-macos-linux.sh')], env=env, input=answers, capture_output=True, text=True, timeout=30)
                     calls = [json.loads(line) for line in log.read_text().splitlines()]
-                    if platform == 'Darwin':
+                    if platform == 'Darwin' and failure != 'official-reuse':
                         self.assertIn(['brew', 'install', 'openssl@3', 'pkg-config'], calls)
                         self.assertIn(['brew', '--prefix', 'openssl@3'], calls)
-                    local_port = '9120' if failure == 'occupied-port' else '9119'
-                    forward = ['tailscale', 'serve', '--bg', '--tcp=9119', 'tcp://127.0.0.1:' + local_port]
+                    local_port = '9120' if failure == 'occupied-port' else access_port
+                    forward = ['tailscale', 'serve', '--bg', '--tcp=' + access_port, 'tcp://127.0.0.1:' + local_port]
                     if failure in ('docker', 'auth', 'explicit-busy'):
                         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                         self.assertNotIn(forward, calls)
@@ -146,7 +151,11 @@ class Installers(unittest.TestCase):
                         self.assertNotIn(wizard, calls)
                     else:
                         self.assertGreater(calls.index(wizard), calls.index(forward))
-                        self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', selected_profile, 'desktop', '--build-only']))
+                        if failure != 'official-reuse':
+                            self.assertGreater(calls.index(wizard), calls.index(['hermes', '-p', selected_profile, 'desktop', '--build-only']))
+                    if failure == 'official-reuse':
+                        self.assertNotIn(['hermes', '-p', selected_profile, 'desktop', '--build-only'], calls)
+                        self.assertFalse(any(c[0] == 'curl' and any('hermes-agent/' in arg and arg.endswith('/scripts/install.sh') for arg in c) for c in calls))
                     ready_state = user_home / '.hermes-workshop-installer' / selected_profile / 'installation-ready.txt'
                     self.assertIn('INSTALLATION CHECKS COMPLETE', ready_state.read_text())
 
@@ -155,7 +164,7 @@ class Installers(unittest.TestCase):
                     self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'terminal.cwd', expected_cwd], calls)
                     if terminal_backend == 'local':
                         self.assertTrue(Path(expected_cwd).is_dir())
-                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:9119'], calls)
+                    self.assertIn(['hermes', '-p', selected_profile, 'config', 'set', 'dashboard.public_url', 'http://100.80.90.10:' + access_port], calls)
                     credentials = user_home / '.hermes-workshop-installer' / selected_profile / 'dashboard-login.txt'
                     if failure == 'fresh-install':
                         self.assertTrue((user_home / '.hermes').is_dir())

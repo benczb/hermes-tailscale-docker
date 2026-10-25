@@ -23,6 +23,12 @@ valid_profile_name() {
   esac
   return 0
 }
+use_existing_desktop=${HERMES_USE_EXISTING_DESKTOP:-0}
+case "$use_existing_desktop" in 0|1) ;; *) fail 'HERMES_USE_EXISTING_DESKTOP must be 0 or 1.' ;; esac
+tailnet_port=${HERMES_TAILNET_PORT:-9119}
+[[ "$tailnet_port" =~ ^[0-9]{1,5}$ ]] || fail 'HERMES_TAILNET_PORT must be a numeric TCP port.'
+tailnet_port=$((10#$tailnet_port))
+[ "$tailnet_port" -ge 1024 ] && [ "$tailnet_port" -le 65535 ] || fail 'Choose a Tailscale TCP port from 1024 to 65535.'
 terminal_backend=${HERMES_TERMINAL_BACKEND:-docker}
 case "$terminal_backend" in docker|local) ;; *) fail 'HERMES_TERMINAL_BACKEND must be docker or local.' ;; esac
 profile=${HERMES_PROFILE_NAME:-}
@@ -36,6 +42,9 @@ export PATH="$HOME/.local/bin:/Applications/Docker.app/Contents/Resources/bin:$P
 if [ "${HERMES_HOME+x}" = x ]; then
   echo 'Using the standard native Hermes layout for this installer; your saved HERMES_HOME setting is unchanged.'
   unset HERMES_HOME
+fi
+if [ "$use_existing_desktop" = 1 ] && ! command -v hermes >/dev/null; then
+  fail 'Finish the original Hermes Desktop installer and open Desktop once, then retry. No second Hermes runtime will be installed.'
 fi
 state="$HOME/.hermes-workshop-installer/_bootstrap"
 mkdir -p "$state"
@@ -53,14 +62,16 @@ if [ "$platform" = macos ]; then
   if ! command -v tailscale >/dev/null && [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
     brew install --cask tailscale
   fi
-  command -v git >/dev/null || brew install git
-  xcode-select -p >/dev/null 2>&1 || fail 'Install Xcode Command Line Tools (xcode-select --install), finish the dialog, then rerun.'
-  # Native Python dependencies may need a source build on Intel/older macOS.
-  # Apple does not ship OpenSSL headers; expose Homebrew's keg-only OpenSSL.
-  brew install openssl@3 pkg-config
-  export OPENSSL_DIR="$(brew --prefix openssl@3)"
-  [ -n "$OPENSSL_DIR" ] || fail 'Homebrew OpenSSL prefix is empty; repair openssl@3 and rerun.'
-  export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+  if [ "$use_existing_desktop" != 1 ]; then
+    command -v git >/dev/null || brew install git
+    xcode-select -p >/dev/null 2>&1 || fail 'Install Xcode Command Line Tools (xcode-select --install), finish the dialog, then rerun.'
+    # Native Python dependencies may need a source build on Intel/older macOS.
+    # Apple does not ship OpenSSL headers; expose Homebrew's keg-only OpenSSL.
+    brew install openssl@3 pkg-config
+    export OPENSSL_DIR="$(brew --prefix openssl@3)"
+    [ -n "$OPENSSL_DIR" ] || fail 'Homebrew OpenSSL prefix is empty; repair openssl@3 and rerun.'
+    export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+  fi
   if [ "$terminal_backend" = docker ]; then open -a Docker; fi
   open -a Tailscale
 else
@@ -113,6 +124,7 @@ tail_ip=$("$tailscale_bin" ip -4)
 [[ "$tail_ip" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'No Tailscale IPv4 address; sign in and rerun.'
 
 if ! command -v hermes >/dev/null; then
+  [ "$use_existing_desktop" != 1 ] || fail 'The original Desktop runtime is missing; finish its installer first.'
   curl --fail --show-error --silent --location https://raw.githubusercontent.com/NousResearch/hermes-agent/afe3cbd817b7f5655e4172b442acf6fa7c9bb55d/scripts/install.sh -o "$state/hermes-install.sh"
   bash "$state/hermes-install.sh" --non-interactive --include-desktop
 fi
@@ -142,7 +154,7 @@ backend_port=${HERMES_BACKEND_PORT:-}
 if [ -z "$backend_port" ] && [ -f "$state/backend-port" ]; then
   IFS= read -r backend_port < "$state/backend-port"
 fi
-backend_port=${backend_port:-9119}
+backend_port=${backend_port:-$tailnet_port}
 [[ "$backend_port" =~ ^[0-9]{1,5}$ ]] || fail 'HERMES_BACKEND_PORT must be a numeric TCP port.'
 backend_port=$((10#$backend_port))
 [ "$backend_port" -ge 1024 ] && [ "$backend_port" -le 65535 ] || fail 'Choose a local backend port from 1024 to 65535.'
@@ -163,7 +175,7 @@ if [ ! -f "$state/backend.sh" ] && port_busy "$backend_port"; then
   done
 fi
 printf '%s\n' "$backend_port" > "$state/backend-port"
-echo "Local backend: 127.0.0.1:$backend_port; Tailscale access remains on TCP 9119."
+echo "Local backend: 127.0.0.1:$backend_port; Tailscale access uses TCP $tailnet_port."
 profile_home="$HOME/.hermes/profiles/$profile"
 if [ ! -e "$profile_home" ]; then
   if [ -z "$source_profile" ]; then
@@ -243,7 +255,7 @@ fi
 hermes -p "$profile" config set terminal.backend "$terminal_backend"
 hermes -p "$profile" config set terminal.cwd "$terminal_cwd"
 # An explicit external origin engages Hermes auth even behind a loopback TCP proxy.
-hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
+hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:$tailnet_port"
 if [ ! -f "$state/auth-configured" ] || [ "${HERMES_RESET_DASHBOARD_AUTH:-0}" = 1 ]; then
   command -v openssl >/dev/null || fail 'Install openssl to generate the dashboard session secret.'
   echo 'Choose your Hermes dashboard login (separate from your OS or Tailscale login).'
@@ -282,7 +294,13 @@ fi
 chmod 600 "$profile_home/.env"
 # Report the saved terminal choice. The hello-world smoke test above checks Docker separately.
 hermes -p "$profile" config get terminal.backend
-hermes -p "$profile" desktop --build-only
+desktop_check='build completed'
+if [ "$use_existing_desktop" = 1 ]; then
+  desktop_check='original installer app reused; no companion build requested'
+  echo 'Reusing Hermes Desktop installed by the original installer.'
+else
+  hermes -p "$profile" desktop --build-only
+fi
 
 # Save a launcher instead of relying on the lifetime of the installer's terminal.
 printf '#!/usr/bin/env bash\nunset HERMES_HOME\nexport PATH=%q\nexec %q -p %q serve --isolated --host 127.0.0.1 --port %q\n' "$PATH" "$hermes_bin" "$profile" "$backend_port" > "$state/backend.sh"
@@ -330,14 +348,14 @@ fi
 # Check the selected origin and auth gate, not just whether something holds port 9119.
 ready=0
 for ((attempt=0; attempt<30; attempt++)); do
-  status=$(curl --silent --show-error --fail --max-time 3 -H "Host: $tail_ip:9119" "http://127.0.0.1:$backend_port/api/status" 2>/dev/null || true)
+  status=$(curl --silent --show-error --fail --max-time 3 -H "Host: $tail_ip:$tailnet_port" "http://127.0.0.1:$backend_port/api/status" 2>/dev/null || true)
   if printf '%s' "$status" | grep -Eq '"auth_required"[[:space:]]*:[[:space:]]*true'; then ready=1; break; fi
   sleep 2
 done
 [ "$ready" = 1 ] || fail "Backend/auth check failed. Check $state/backend*.log or journalctl --user -u hermes-workshop-$profile. Local port $backend_port may be occupied."
-sudo "$tailscale_bin" serve --bg --tcp=9119 "tcp://127.0.0.1:$backend_port"
+sudo "$tailscale_bin" serve --bg --tcp="$tailnet_port" "tcp://127.0.0.1:$backend_port"
 "$tailscale_bin" serve status
-echo "Ready: http://$tail_ip:9119 (tailnet devices only; tailnet policy must permit TCP 9119)."
+echo "Ready: http://$tail_ip:$tailnet_port (tailnet devices only; tailnet policy must permit TCP $tailnet_port)."
 echo "Dashboard login: $state/dashboard-login.txt"
 echo "Open Desktop with: env -u HERMES_HOME hermes -p $profile desktop"
 echo 'Backend starts at user login. Linux: enable lingering if it must run while logged out.'
@@ -350,10 +368,10 @@ Terminal backend: $terminal_backend
 Terminal workspace: $terminal_cwd
 Docker: $docker_check
 Tailscale: connected ($tail_ip)
-Hermes Desktop: build completed
+Hermes Desktop: $desktop_check
 Local backend: authenticated status check passed on 127.0.0.1:$backend_port
-Tailscale TCP 9119: forwarding configured to 127.0.0.1:$backend_port
-Tailnet URL: http://$tail_ip:9119
+Tailscale TCP $tailnet_port: forwarding configured to 127.0.0.1:$backend_port
+Tailnet URL: http://$tail_ip:$tailnet_port
 Remote-device access and a real conversation still need verification.
 READY
 cat "$state/installation-ready.txt"
@@ -368,7 +386,7 @@ if [ -f "$state/setup-pending" ]; then
       restore_profile_settings() {
         hermes -p "$profile" config set terminal.backend "$terminal_backend"
         hermes -p "$profile" config set terminal.cwd "$terminal_cwd"
-        hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:9119"
+        hermes -p "$profile" config set dashboard.public_url "http://$tail_ip:$tailnet_port"
       }
       trap restore_profile_settings EXIT
       hermes -p "$profile" setup

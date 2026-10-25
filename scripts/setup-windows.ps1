@@ -5,7 +5,9 @@ param(
     [string]$ProfileName = '',
     [string]$ProfileSource = '',
     [switch]$ResetDashboardAuth,
-    [switch]$SkipProfileSetup
+    [switch]$SkipProfileSetup,
+    [switch]$UseExistingDesktop,
+    [ValidateRange(1024, 65535)][int]$TailnetPort = 9119
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -129,7 +131,7 @@ function Ensure-WorkshopWsl {
     if (-not $updated -or $updated -lt $minimum) { throw 'WSL update did not report version 2.1.5 or newer. Restart Windows and check wsl --version before rerunning.' }
 }
 function Get-WorkshopBackendPort {
-    param([string]$StateDirectory)
+    param([string]$StateDirectory, [ValidateRange(1024, 65535)][int]$PreferredPort = 9119)
     $saved = Join-Path $StateDirectory 'backend-port'
     if (Test-Path $saved) {
         $port = 0
@@ -138,7 +140,7 @@ function Get-WorkshopBackendPort {
     }
     # Preserve the port used by older installer-managed services.
     if (Test-Path (Join-Path $StateDirectory 'backend.ps1')) { Save-Utf8 $saved '9119'; return 9119 }
-    foreach ($port in @(9119) + @(9120..9139)) {
+    foreach ($port in @($PreferredPort) + @(9120..9139)) {
         $busy = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @('127.0.0.1', '0.0.0.0', '::', '::1') }
         if (-not $busy) { Save-Utf8 $saved ([string]$port); return $port }
     }
@@ -163,6 +165,10 @@ try {
     }
     $os = Get-CimInstance Win32_OperatingSystem
     Assert-WorkshopWindowsHost $os.Caption $os.Version $os.ProductType $env:PROCESSOR_ARCHITECTURE
+    $env:PATH = "$env:LOCALAPPDATA\hermes\bin;$env:PATH"
+    if ($UseExistingDesktop -and -not (Get-Command hermes -ErrorAction SilentlyContinue)) {
+        throw 'Finish the original Hermes Desktop installer and open Desktop once, then retry. No second Hermes runtime will be installed.'
+    }
     if ($TerminalBackend -eq 'docker') {
         Write-Host 'Native Hermes, Desktop and Tailscale run on this PC. Docker Desktop uses its internal WSL2 Linux engine for terminal commands. No separate Linux machine or full Hyper-V feature is required.'
         $featuresChanged = $false
@@ -238,6 +244,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $tailIp -notmatch '^100\.\d+\.\d+\.\d+$') { throw 'No Tailscale IPv4 address. Complete sign-in, then rerun.' }
     Write-Host "Tailscale is connected: $tailIp"
     if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) {
+        if ($UseExistingDesktop) { throw 'The original Desktop runtime is missing; finish its installer first.' }
         $installer = Join-Path $state 'hermes-install.ps1'
         Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/NousResearch/hermes-agent/afe3cbd817b7f5655e4172b442acf6fa7c9bb55d/scripts/install.ps1' -OutFile $installer
         # Child process confines the upstream script's exit/variables to its own scope.
@@ -251,7 +258,7 @@ try {
     $state = Join-Path $env:LOCALAPPDATA "HermesWorkshopInstaller\$ProfileName"
     New-Item -ItemType Directory -Force -Path $state | Out-Null
     Set-Acl -Path $state -AclObject $acl
-    $backendPort = Get-WorkshopBackendPort $state
+    $backendPort = Get-WorkshopBackendPort -StateDirectory $state -PreferredPort $TailnetPort
     $profileHome = Join-Path $env:LOCALAPPDATA "hermes\profiles\$ProfileName"
     if (-not (Test-Path $profileHome)) {
         if (-not $ProfileSource) {
@@ -278,7 +285,7 @@ try {
     Write-Host "Configuring the $TerminalBackend terminal backend and dashboard login."
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.backend', $TerminalBackend)
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'terminal.cwd', $terminalWorkingDirectory)
-    Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'dashboard.public_url', "http://${tailIp}:9119")
+    Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'set', 'dashboard.public_url', "http://${tailIp}:$TailnetPort")
     if ($ResetDashboardAuth -or -not (Test-Path (Join-Path $state 'auth-configured'))) {
         Write-Host 'Choose your Hermes dashboard login (separate from your OS or Tailscale login).'
         do {
@@ -324,8 +331,14 @@ try {
         Write-Host 'Keeping your existing dashboard login. Use -ResetDashboardAuth to choose a new login.'
     }
     Invoke-Checked $hermes @('-p', $ProfileName, 'config', 'get', 'terminal.backend')
-    Write-Host 'Building/checking Hermes Desktop now. No separate installation confirmation is required.'
-    Invoke-Checked $hermes @('-p', $ProfileName, 'desktop', '--build-only')
+    $desktopCheck = 'build completed; launch requested'
+    if ($UseExistingDesktop) {
+        $desktopCheck = 'original installer app reused; no companion build requested'
+        Write-Host 'Reusing Hermes Desktop installed by the original installer.'
+    } else {
+        Write-Host 'Building/checking Hermes Desktop now. No separate installation confirmation is required.'
+        Invoke-Checked $hermes @('-p', $ProfileName, 'desktop', '--build-only')
+    }
     # Run at current-user login with limited privileges, even though setup needs elevation.
     $escapedHermes = $hermes.Replace("'", "''")
     $backend = Join-Path $state 'backend.ps1'
@@ -342,15 +355,15 @@ try {
     $backendReady = $false
     for ($i = 0; $i -lt 30; $i++) {
         try {
-            $status = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/status" -Headers @{ Host = "${tailIp}:9119" } -TimeoutSec 3
+            $status = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/status" -Headers @{ Host = "${tailIp}:$TailnetPort" } -TimeoutSec 3
             if ($status.auth_required -eq $true) { $backendReady = $true; break }
         } catch { }
         Start-Sleep -Seconds 2
     }
     if (-not $backendReady) { throw "Backend/auth check failed. Inspect Scheduled Task $taskName and local port $backendPort. Tailscale forwarding was not enabled." }
-    Invoke-Checked tailscale @('serve', '--bg', '--tcp=9119', "tcp://127.0.0.1:$backendPort")
+    Invoke-Checked tailscale @('serve', '--bg', "--tcp=$TailnetPort", "tcp://127.0.0.1:$backendPort")
     Invoke-Checked tailscale @('serve', 'status')
-    Write-Host "Ready: http://${tailIp}:9119 (tailnet devices only; policy must permit TCP 9119)."
+    Write-Host "Ready: http://${tailIp}:$TailnetPort (tailnet devices only; policy must permit TCP $TailnetPort)."
     Write-Host "Dashboard login: $state\dashboard-login.txt"
     $desktopLauncher = Join-Path $state 'Open-Hermes-Desktop.ps1'
     Save-Utf8 $desktopLauncher "Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue`r`nRemove-Item Env:HERMES_DESKTOP_REMOTE_URL -ErrorAction SilentlyContinue`r`n`$env:PATH = '$($env:PATH.Replace("'", "''"))'`r`n& '$escapedHermes' -p '$ProfileName' desktop`r`nexit `$LASTEXITCODE`r`n"
@@ -358,10 +371,10 @@ try {
     Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
     Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
-    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nTerminal backend: $TerminalBackend`r`nTerminal workspace: $terminalWorkingDirectory`r`nDocker: $dockerCheck`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: build completed; launch requested`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP 9119: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:9119`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
+    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nTerminal backend: $TerminalBackend`r`nTerminal workspace: $terminalWorkingDirectory`r`nDocker: $dockerCheck`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: $desktopCheck`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP $TailnetPort: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:$TailnetPort`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
     Save-Utf8 (Join-Path $state 'installation-ready.txt') $readiness
     Write-Host $readiness
-    Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:9119" -Skip:$SkipProfileSetup -TerminalBackend $TerminalBackend -WorkingDirectory $terminalWorkingDirectory
+    Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:$TailnetPort" -Skip:$SkipProfileSetup -TerminalBackend $TerminalBackend -WorkingDirectory $terminalWorkingDirectory
 } catch {
     Write-Error "Setup stopped: $($_.Exception.Message)" -ErrorAction Continue
     exit 1

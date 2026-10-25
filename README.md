@@ -1,6 +1,18 @@
 # Hermes + Tailscale + Docker
 
-Native Hermes and source-built Desktop run on your own macOS, Linux or Windows computer. Choose a Docker Linux-container sandbox or a local host terminal for tool commands, with Tailscale for private remote access. **No separate Linux machine is required.** In Docker mode on Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. In local-terminal mode Docker and its Windows WSL2 prerequisites are skipped. On macOS, Docker Desktop manages its own internal Linux VM when selected.
+Native Hermes Desktop and its agent runtime run on your own computer; source builds are a separate installation path. Choose a Docker Linux-container sandbox or a local host terminal for tool commands, with Tailscale for private remote access. **No separate Linux machine is required.** In Docker mode on Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. In local-terminal mode Docker and its Windows WSL2 prerequisites are skipped. On macOS, Docker Desktop manages its own internal Linux VM when selected.
+
+## Graphical companion: original Desktop installer first
+
+The graphical companion defaults to the **original Nous Research Hermes Desktop installer** on supported platforms. It opens the official `Hermes-Setup.exe` (Windows) or `Hermes-Setup.dmg` (Apple Silicon) download, lets the user finish that installer and open Desktop, then checks its managed completion marker, built app and native CLI before applying the profile, terminal and Tailscale settings. It does not run a separate Hermes installation or Desktop build in this mode.
+
+The official DMG bootstrap installer is Apple Silicon-only. Intel Mac and Linux users must explicitly choose the **Source build · advanced alternative** if they want the companion's source path. Intel source builds remain best effort. The original bootstrap installer itself can prepare/build dependencies; choosing it does not guarantee every dependency failure disappears.
+
+This preview integrates the original bootstrap installer's standard native layout. A detected bundled/Store edition is stopped for explicit integration rather than converted into another runtime. Configure that installed app directly until its payload mapping is supported.
+
+Recommended form defaults are preselected and labeled: original Desktop installer on supported platforms, Docker sandbox for **terminal commands only**, password hidden, preserve an existing login, and **Tailscale TCP port 9119 (Default: 9119)**. Profile name, dashboard username and password are personal entries; no admin credentials are preset.
+
+The GUI is a preview; see [build and support details](installer-ui/README.md). The ZIPs below are separate advanced script installers and retain the legacy source path by default. Use the GUI for the original-installer handoff, or explicitly enable reuse-only mode after completing the original installer.
 
 ## Direct downloads
 
@@ -133,3 +145,9 @@ Commit the regenerated `downloads/*.zip` and `downloads/SHA256SUMS` with install
 The pre-existing `bootstrap.sh`, `bootstrap.ps1` and `bootstrap.py` remain available with their own separate behavior: a fresh dedicated home, no bundled persona, preinstalled prerequisites and explicit consent gates. They are not the workshop launcher path. See [the retained bootstrap guide](docs/bootstrap-guide.md) and [VERIFICATION.md](VERIFICATION.md). Existing bootstrap tests and provenance records are retained.
 
 Local terminal mode creates a `workspace` directory inside the selected Hermes profile and sets `terminal.cwd` to that host path. Docker mode uses `/workspace` inside the container. The final optional profile wizard restores both the selected backend and its workspace.
+
+## Custom private access port
+
+The GUI's Tailscale TCP port field is pre-filled with **9119** and labeled **(Default: 9119)**. Choose a port from 1024 to 65535. The selected port is used in the Serve rule, declared dashboard origin, auth checks and printed tailnet URL. A saved local backend port is reused; a fresh backend tries the chosen port, then an available local fallback. Local and tailnet ports are shown separately in the completion report.
+
+Script equivalents: `HERMES_TAILNET_PORT=9234 bash scripts/setup-macos-linux.sh` or `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -TailnetPort 9234`. To configure an installation completed by the original Desktop installer without source installation/build, add `HERMES_USE_EXISTING_DESKTOP=1` for Bash or `-UseExistingDesktop` for PowerShell. Finish the original installer first. Changing ports does not reset unrelated Tailscale Serve rules.

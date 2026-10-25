@@ -47,6 +47,9 @@ try {
     if ((Get-WorkshopBackendPort $fixture) -ne 9120) { throw 'Rerun did not reuse saved port' }
     Save-Utf8 (Join-Path $fixture 'backend-port') 'invalid'
     Assert-Throws { Get-WorkshopBackendPort $fixture }
+    Remove-Item (Join-Path $fixture 'backend-port') -ErrorAction SilentlyContinue
+    $busyPorts = @()
+    if ((Get-WorkshopBackendPort $fixture -PreferredPort 9234) -ne 9234) { throw 'Custom preferred port was ignored' }
     Remove-Item (Join-Path $fixture 'backend-port')
     $busyPorts = @(9119..9139)
     Assert-Throws { Get-WorkshopBackendPort $fixture }
@@ -69,3 +72,18 @@ function winget { throw 'Local mode attempted a Docker package install' }
 $TerminalBackend = 'local'
 foreach ($gate in $gates) { . ([scriptblock]::Create($gate.Extent.Text)) }
 Write-Host 'Local mode skips all production Docker/WSL gates.'
+$parameterOnly = [scriptblock]::Create($ast.ParamBlock.Extent.Text)
+& $parameterOnly -TailnetPort 9234
+Assert-Throws { & $parameterOnly -TailnetPort 80 }
+Assert-Throws { & $parameterOnly -TailnetPort 65536 }
+# The reuse branch must never invoke the Desktop source-build command.
+$reuse = @($ast.FindAll({ param($n)
+    $n -is [System.Management.Automation.Language.IfStatementAst] -and
+    $n.Clauses[0].Item1.Extent.Text -eq '$UseExistingDesktop' -and
+    $n.Extent.Text -match 'original installer app reused'
+}, $true))
+if ($reuse.Count -ne 1) { throw 'Missing existing-Desktop build guard' }
+function Invoke-Checked { throw 'Reuse-only mode tried to build Desktop' }
+$UseExistingDesktop = $true
+. ([scriptblock]::Create($reuse[0].Extent.Text))
+if ($desktopCheck -notlike '*no companion build requested*') { throw 'Original Desktop reuse was not reported' }

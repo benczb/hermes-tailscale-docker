@@ -46,7 +46,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Verify macOS preview code signature
         if: runner.os == 'macOS'
-        run: codesign --verify --deep --strict --verbose=2 dist/mac*/Hermes\ Setup.app
+        run: codesign --verify --deep --strict --verbose=2 dist/mac*/Hermes\ Setup\ Companion.app
       - uses: actions/upload-artifact@v4
         with:
           name: hermes-setup-preview-${{ matrix.platform }}

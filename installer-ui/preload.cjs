@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('hermesSetup', {
   cancel: () => ipcRenderer.invoke('setup:cancel'),
   openDashboard: () => ipcRenderer.invoke('setup:dashboard'),
   openDesktop: () => ipcRenderer.invoke('setup:desktop'),
+  openOriginalInstaller: () => ipcRenderer.invoke('setup:original-installer'),
   onEvent: listener => {
     const handle = (_event, data) => listener(data);
     ipcRenderer.on('setup:event', handle);
