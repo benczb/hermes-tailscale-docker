@@ -23,7 +23,17 @@ These safeguards guide agent behavior; they are not a technical security boundar
 
 ## Get started
 
-**Ask your agent** — copy this instruction:
+Choose one setup method:
+
+| Method | Choose this when… | Follow this guide |
+|---|---|---|
+| **1. Ask your agent** | You have an AI agent that can run commands on your computer and want help with prerequisites. | [Agent-assisted setup](docs/agent-install.md) |
+| **2. Run a command** | You prefer to paste a command yourself and open the graphical wizard. Requires Node.js 24+, npm and potentially build tools. | [macOS / Linux command](docs/command-setup.md#macos--linux) · [Windows command](docs/command-setup.md#windows) |
+| **3. Download a ZIP** | You prefer to extract files and run a terminal installer. This advanced method builds Desktop from source by default. | [Package setup](docs/advanced-setup.md#direct-downloads) |
+
+### 1. Ask your agent
+
+Copy this instruction into your agent:
 
 > Install Hermes Desktop using https://github.com/benczb/hermes-tailscale-docker.
 > Read AGENTS.md and docs/command-setup.md, check my computer's prerequisites,
@@ -33,12 +43,18 @@ These safeguards guide agent behavior; they are not a technical security boundar
 
 The agent needs command access to your computer. [Agent setup guide](docs/agent-install.md).
 
-**Start with a command** — the launcher fetches files and opens the wizard.
-Requires Node.js 24+, npm and potentially Python/C++ build tools.
-[Commands for macOS, Linux and Windows](docs/command-setup.md).
+### 2. Run a command
 
-**Download a package** — these are advanced terminal installers that use the
-source-build path by default, rather than the graphical wizard:
+The launcher fetches files and opens the graphical wizard.
+Requires Node.js 24+, npm and potentially Python/C++ build tools.
+Open the [command guide](docs/command-setup.md), check its prerequisites, then
+follow the section for your operating system.
+
+### 3. Download a ZIP
+
+Choose your operating system below, then follow the
+[package setup instructions](docs/advanced-setup.md#direct-downloads). These are
+advanced terminal installers using the source-build path by default:
 
 | macOS | Linux | Windows |
 |---|---|---|
