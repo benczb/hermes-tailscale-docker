@@ -29,7 +29,7 @@ Choose one setup method:
 |---|---|---|
 | **1. Ask your agent** | You have an AI agent that can run commands on your computer and want help with prerequisites. | [Agent-assisted setup](docs/agent-install.md) |
 | **2. Run a command** | You prefer to paste a command yourself and open the graphical wizard. Requires Node.js 24+, npm and potentially build tools. | [macOS / Linux command](docs/command-setup.md#macos--linux) · [Windows command](docs/command-setup.md#windows) |
-| **3. Download a ZIP** | You prefer to extract files and run a terminal installer. This advanced method builds Desktop from source by default. | [Package setup](docs/advanced-setup.md#direct-downloads) |
+| **3. Download the installer** | You prefer to extract files and run a terminal installer. This advanced method builds Desktop from source by default. | [Installer setup](docs/advanced-setup.md#direct-downloads) |
 
 ### 1. Ask your agent
 
@@ -50,7 +50,7 @@ Requires Node.js 24+, npm and potentially Python/C++ build tools.
 Open the [command guide](docs/command-setup.md), check its prerequisites, then
 follow the section for your operating system.
 
-### 3. Download a ZIP
+### 3. Download the installer
 
 Choose your operating system below, then follow the
 [package setup instructions](docs/advanced-setup.md#direct-downloads). These are
@@ -58,7 +58,7 @@ advanced terminal installers using the source-build path by default:
 
 | macOS | Linux | Windows |
 |---|---|---|
-| [Download ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-macos.zip) | [Download ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-linux.zip) | [Download ZIP](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-windows.zip) |
+| [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-macos.zip) | [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-linux.zip) | [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-windows.zip) |
 
 Extract into `hermes-starter-agent-installer/` and use the included launcher.
 [Package instructions](docs/advanced-setup.md) · [Checksums](downloads/SHA256SUMS)
