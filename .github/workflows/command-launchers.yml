@@ -1,0 +1,32 @@
+name: Command launchers
+on:
+  push:
+    paths: ['start-setup.*', 'scripts/test-command-launchers.py', '.github/workflows/command-launchers.yml']
+  pull_request:
+    paths: ['start-setup.*', 'scripts/test-command-launchers.py', '.github/workflows/command-launchers.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/test-command-launchers.py
+      - name: Parse Bash
+        if: runner.os != 'Windows'
+        run: bash -n start-setup.sh
+      - name: Parse Windows launcher with Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'start-setup.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | Format-List; exit 1 }

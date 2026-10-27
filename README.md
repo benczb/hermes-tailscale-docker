@@ -14,6 +14,34 @@ Recommended form defaults are preselected and labeled: original Desktop installe
 
 The GUI is a preview; see [build and support details](installer-ui/README.md). The ZIPs below are separate advanced script installers and retain the legacy source path by default. Use the GUI for the original-installer handoff, or explicitly enable reuse-only mode after completing the original installer.
 
+## Start with a command instead of a manual download
+
+The optional command launchers fetch the files and open the same graphical wizard.
+This is a **source-launch preview**: it requires **Node.js 24+**, npm and potentially
+Python/C++ build tools. It does not yet fetch a prebuilt, signed release. See the
+[command setup guide](docs/command-setup.md) for prerequisites and limitations.
+
+macOS/Linux — paste into Terminal as your normal desktop user:
+
+```bash
+f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/start-setup.sh -o "$f" && bash "$f"
+```
+
+Windows — paste into 64-bit Administrator Windows PowerShell:
+
+```powershell
+$f = Join-Path $env:TEMP ('hermes-start-' + [guid]::NewGuid().ToString('N') + '.ps1'); Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/start-setup.ps1 -OutFile $f -ErrorAction Stop; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $f
+```
+
+The launchers verify a fixed source archive, prepare GUI dependencies, then show
+the form before component installation. Original Desktop installer platform
+limits still apply; Intel Mac needs the explicit best-effort source alternative.
+You still approve sign-ins, administrator prompts and any required reboots.
+
+Or tell your agent: **“Install Hermes using this repository. Read AGENTS.md and
+docs/command-setup.md, check prerequisites, and open the graphical setup wizard.
+Keep Hermes native and use Docker only for terminal commands if I select it.”**
+
 ## Direct downloads
 
 Choose your operating system. These links download a ZIP directly from this public repository; no GitHub sign-in or navigation is required.
