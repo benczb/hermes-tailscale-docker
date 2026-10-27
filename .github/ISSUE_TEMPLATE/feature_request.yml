@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a focused improvement to installation or documentation.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe who encounters it and on which platform.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain the user experience and any alternatives considered.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Compatibility and existing installations
+      description: Note effects on profiles, authentication, Docker, Tailscale or supported platforms, if known.

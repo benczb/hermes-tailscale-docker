@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed the authored workshop profile into the standalone installers."""
+"""Embed the authored Starter Agent profile into the standalone installers."""
 import argparse
 from pathlib import Path
 import re
@@ -9,7 +9,7 @@ def template_scripts():
     files = ['distribution.yaml', 'config.yaml', 'SOUL.md']
     bash_lines, ps_lines = [], []
     for name in files:
-        content = (ROOT / 'profiles/workshop' / name).read_text()
+        content = (ROOT / 'profiles/starter-agent' / name).read_text()
         bash_lines.append(f'    cat > "$state/template/{name}" <<\'WORKSHOP_FILE\'\n' + content.rstrip('\n') + '\nWORKSHOP_FILE')
         literal = content.replace('`', '``').replace('$', '`$').replace('"', '`"').replace('\r', '').replace('\n', '`n')
         ps_lines.append(f'            Save-Utf8 (Join-Path $ProfileSource \'{name}\') "{literal}"')

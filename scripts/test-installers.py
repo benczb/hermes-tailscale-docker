@@ -61,7 +61,7 @@ elif name == 'hermes':
 
 class Installers(unittest.TestCase):
     def test_profile_contains_safe_agent_starter(self):
-        soul = (ROOT / 'profiles/workshop/SOUL.md').read_text()
+        soul = (ROOT / 'profiles/starter-agent/SOUL.md').read_text()
         self.assertTrue(soul.startswith('# SOUL.md - Safe Agent Starter\n'))
         self.assertIn('[YOUR NAME]', soul)
         self.assertIn('## Approval gates', soul)
@@ -123,7 +123,7 @@ class Installers(unittest.TestCase):
                         env['HERMES_SKIP_PROFILE_SETUP'] = '1'
                     if failure == 'explicit-busy':
                         env['HERMES_BACKEND_PORT'] = '9119'
-                    selected_profile = 'Hamburger_01' if failure == 'custom-profile' else ('personal' if failure == 'explicit-profile' else 'workshop')
+                    selected_profile = 'Hamburger_01' if failure == 'custom-profile' else ('personal' if failure == 'explicit-profile' else 'starter-agent')
                     if failure == 'explicit-profile':
                         env['HERMES_PROFILE_NAME'] = selected_profile
                     chosen_password = "Fixture $ # ' \\ password!"
@@ -190,7 +190,7 @@ class Installers(unittest.TestCase):
                     self.assertEqual(custom_soul.read_text(), 'Keep the user customization.')
                     self.assertEqual((user_home / '.hermes-workshop-installer/_bootstrap/last-profile').read_text().strip(), selected_profile)
                     if failure in ('custom-profile', 'explicit-profile'):
-                        self.assertFalse((user_home / '.hermes/profiles/workshop').exists())
+                        self.assertFalse((user_home / '.hermes/profiles/starter-agent').exists())
                     if platform == 'Linux' and failure == '':
                         reset_env = dict(env, HERMES_RESET_DASHBOARD_AUTH='1')
                         reset_answers = '\nnew-user\ny\n' + chosen_password + '\n' + chosen_password + '\n'

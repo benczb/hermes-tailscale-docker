@@ -139,7 +139,7 @@ hermes_bin=$(command -v hermes)
 # Choose the profile just before creating its files and asking for dashboard credentials.
 selection_file="$state/last-profile"
 if [ -z "$profile" ]; then
-  default_profile=workshop
+  default_profile=starter-agent
   if [ -f "$selection_file" ]; then
     saved_profile=$(cat "$selection_file")
     if valid_profile_name "$saved_profile"; then default_profile=$saved_profile; fi
@@ -188,9 +188,9 @@ if [ ! -e "$profile_home" ]; then
     mkdir -p "$state/template"
     # BEGIN WORKSHOP TEMPLATE
     cat > "$state/template/distribution.yaml" <<'WORKSHOP_FILE'
-name: workshop
-version: 1.0.1
-description: "Ben's Hermes workshop: slide 67 Safe Agent Starter, Docker terminal"
+name: starter-agent
+version: 1.0.2
+description: "Starter Agent: Safe Agent Starter SOUL.md with a Docker terminal default"
 author: Ben
 distribution_owned:
   - SOUL.md

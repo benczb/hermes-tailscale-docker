@@ -42,7 +42,7 @@
         "to": "installer/setup-windows.ps1"
       },
       {
-        "from": "../profiles/workshop/SOUL.md",
+        "from": "../profiles/starter-agent/SOUL.md",
         "to": "installer/SOUL.md"
       }
     ],

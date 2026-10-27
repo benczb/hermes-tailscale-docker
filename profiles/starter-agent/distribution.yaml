@@ -1,0 +1,7 @@
+name: starter-agent
+version: 1.0.2
+description: "Starter Agent: Safe Agent Starter SOUL.md with a Docker terminal default"
+author: Ben
+distribution_owned:
+  - SOUL.md
+  - config.yaml

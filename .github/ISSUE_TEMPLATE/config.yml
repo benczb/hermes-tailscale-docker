@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security reporting instructions
+    url: https://github.com/benczb/hermes-tailscale-docker/blob/main/SECURITY.md
+    about: Follow the private-reporting instructions; do not post exploit details publicly.
+  - name: Setup and support guide
+    url: https://github.com/benczb/hermes-tailscale-docker/blob/main/SUPPORT.md
+    about: Check setup instructions and platform limitations before reporting a problem.

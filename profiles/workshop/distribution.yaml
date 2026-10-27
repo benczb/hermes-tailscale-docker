@@ -1,7 +1,0 @@
-name: workshop
-version: 1.0.1
-description: "Ben's Hermes workshop: slide 67 Safe Agent Starter, Docker terminal"
-author: Ben
-distribution_owned:
-  - SOUL.md
-  - config.yaml

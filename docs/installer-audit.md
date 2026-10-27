@@ -1,4 +1,4 @@
-# Workshop installer operating guide
+# Starter Agent installer operating guide
 
 Updated 24 October 2026. The copyable setup slides and packaged scripts use the same implementation.
 
@@ -34,7 +34,7 @@ Missing Docker Desktop is installed with --backend=wsl-2; missing Tailscale is i
 
 The installer signs into Tailscale, installs native Hermes if absent, installs missing local named profile files, sets terminal.backend to docker, configures dashboard public URL/login and builds Desktop. Existing profile/SOUL/model settings and normal-rerun login are preserved. User/SYSTEM ACLs protect installer state. Inherited HERMES_HOME and HERMES_DESKTOP_REMOTE_URL are cleared for workshop processes only; saved user settings remain. Old remote-url.txt state is ignored.
 
-A limited-privilege Scheduled Task launches an isolated local loopback backend at user login. Readiness must report authentication required before Tailscale forwarding is enabled. Open-Hermes-Desktop.ps1 in the installer state selects the local workshop profile and clears inherited remote URL/home selectors. It is launched after backend/forwarding readiness and can be reused later. The pending profile/model wizard opens last in a separate PowerShell window. No SSH server or separate Linux host is involved.
+A limited-privilege Scheduled Task launches an isolated local loopback backend at user login. Readiness must report authentication required before Tailscale forwarding is enabled. Open-Hermes-Desktop.ps1 in the installer state selects the chosen local profile and clears inherited remote URL/home selectors. It is launched after backend/forwarding readiness and can be reused later. The pending profile/model wizard opens last in a separate PowerShell window. No SSH server or separate Linux host is involved.
 
 ## Workshop preparation
 
@@ -60,7 +60,7 @@ A reset replaces older admin logins and rotates the signing secret. Profile/mode
 
 ## Profile contents
 
-profiles/workshop contains distribution.yaml (version 1.0.1), config.yaml (terminal.backend: docker; terminal.cwd: /workspace inside the container), the exact Safe Agent Starter SOUL.md from original slide 67 and an authoring .gitignore. Personalize [YOUR NAME]. No API keys, personal memories, model selection, custom skills, MCP connections, messaging tokens, cron jobs or theme are bundled. Base Hermes can ship its own standard skills. Existing SOUL customizations are preserved. Set HERMES_PROFILE_SOURCE/HERMES_PROFILE_NAME on the backend for a trusted custom distribution. On Windows, use -ProfileSource / -ProfileName to install a trusted custom distribution locally.
+profiles/starter-agent contains distribution.yaml (version 1.0.2), config.yaml (terminal.backend: docker; terminal.cwd: /workspace inside the container), the exact Safe Agent Starter SOUL.md from original slide 67 and an authoring .gitignore. Personalize [YOUR NAME]. No API keys, personal memories, model selection, custom skills, MCP connections, messaging tokens, cron jobs or theme are bundled. Base Hermes can ship its own standard skills. Existing SOUL customizations are preserved. Set HERMES_PROFILE_SOURCE/HERMES_PROFILE_NAME on the backend for a trusted custom distribution. On Windows, use -ProfileSource / -ProfileName to install a trusted custom distribution locally.
 
 /workspace is the container working directory, not an automatic mount of all host files. Docker isolates terminal commands only; native tools, plugins and browser capabilities remain outside that sandbox. SOUL rules are behavioral guidance, not enforced isolation.
 
@@ -80,7 +80,7 @@ tailscale serve status
 
 On Windows, the installer configures the same Serve TCP mapping to its selected local backend port. Manual checks in native Administrator PowerShell use tailscale status, tailscale ip -4 and tailscale serve status. No broad LAN firewall rule is required. macOS may use /Applications/Tailscale.app/Contents/MacOS/Tailscale. Linux initial sign-in/Serve may need sudo or tailnet enablement approval.
 
-Verify a real sign-in/conversation in Desktop on each platform, select the local workshop profile, make a terminal call and inspect local docker ps. Confirm reruns preserve profile/login and test login/service recovery. Automated mocked regression tests and syntax/package checks do not replace clean Windows Home/Pro, Linux and macOS installation testing.
+Verify a real sign-in/conversation in Desktop on each platform, select the chosen local profile, make a terminal call and inspect local docker ps. Confirm reruns preserve profile/login and test login/service recovery. Automated mocked regression tests and syntax/package checks do not replace clean Windows Home/Pro, Linux and macOS installation testing.
 
 State/logs: ~/.hermes-workshop-installer/<profile>/ on the backend; journalctl --user -u hermes-workshop-workshop on Linux; %LOCALAPPDATA%\HermesWorkshopInstaller\<profile>\ on Windows. Backend state uses umask 077; Windows client state uses user/SYSTEM ACLs. Never commit runtime .env/login files.
 

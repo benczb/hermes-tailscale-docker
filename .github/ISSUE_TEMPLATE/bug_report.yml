@@ -1,0 +1,49 @@
+name: Installation bug
+description: Report a reproducible installer or companion problem. No secrets or security exploits.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, follow SECURITY.md instead. Redact passwords, tokens, OAuth JSON, private hostnames and personal paths."
+  - type: input
+    id: platform
+    attributes:
+      label: OS edition/version and CPU architecture
+      placeholder: Windows 11 Home x64, macOS Apple Silicon, or Linux distribution/version
+    validations:
+      required: true
+  - type: input
+    id: entrypoint
+    attributes:
+      label: Entry point and revision/version
+      description: Command launcher, graphical preview, ZIP script, one-shot slide command or legacy bootstrap; include commit if known.
+    validations:
+      required: true
+  - type: dropdown
+    id: terminal
+    attributes:
+      label: Terminal backend
+      options:
+        - Docker sandbox
+        - Local terminal
+        - Not selected or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and failed stage
+      description: Include whether Hermes was already installed and what happened on retry.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted error or screenshot
+      description: Share only the relevant excerpt after checking it for secrets and personal data.

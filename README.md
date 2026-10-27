@@ -1,6 +1,29 @@
-# Hermes + Tailscale + Docker
+# Hermes Starter Agent Setup
 
-Native Hermes Desktop and its agent runtime run on your own computer; source builds are a separate installation path. Choose a Docker Linux-container sandbox or a local host terminal for tool commands, with Tailscale for private remote access. **No separate Linux machine is required.** In Docker mode on Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2 internally; all workshop setup commands run in native PowerShell. In local-terminal mode Docker and its Windows WSL2 prerequisites are skipped. On macOS, Docker Desktop manages its own internal Linux VM when selected.
+A simple, guided setup that brings together **Hermes Desktop, optional Docker
+terminal tools and Tailscale** on your own computer. Start with a command, ask
+your agent to help, or use a downloadable package. The graphical wizard lets you
+choose your profile name, dashboard login, terminal backend and private access
+port **(Default: 9119)** before component installation.
+
+The bundled **Starter Agent** template includes a preconfigured
+[`SOUL.md` with safeguards](profiles/starter-agent/SOUL.md). It asks your agent to
+protect secrets, use only the access needed for a task, treat external content as
+untrusted, request approval before consequential actions, and verify results
+before reporting success. Personalize `[YOUR NAME]` in the file. These are
+behavioral instructions for the agent, not a technical security boundary or a
+guarantee that every action is safe. Existing customized profiles are preserved.
+
+**Hermes Desktop and its agent stay native; only terminal commands optionally run
+in Docker.** Tailscale runs on the host for private remote access. No separate
+Linux computer or backend IP is required. You still complete sign-ins, OS approvals
+and any required restart. This is a community companion and remains a preview;
+platform limitations and prerequisites are described below.
+
+In Docker mode on Windows Home/Pro/Enterprise/Education, Docker Desktop uses WSL2
+internally; setup commands run in native PowerShell. Local-terminal mode skips
+Docker and its Windows WSL2 prerequisites. On macOS, Docker Desktop manages its
+own internal Linux VM when selected.
 
 ## Graphical companion: original Desktop installer first
 
@@ -38,9 +61,17 @@ the form before component installation. Original Desktop installer platform
 limits still apply; Intel Mac needs the explicit best-effort source alternative.
 You still approve sign-ins, administrator prompts and any required reboots.
 
-Or tell your agent: **“Install Hermes using this repository. Read AGENTS.md and
-docs/command-setup.md, check prerequisites, and open the graphical setup wizard.
-Keep Hermes native and use Docker only for terminal commands if I select it.”**
+Or give your agent this instruction:
+
+> Install Hermes Desktop using https://github.com/benczb/hermes-tailscale-docker.
+> Read AGENTS.md, README.md and docs/command-setup.md. Check my computer's
+> prerequisites and launch the graphical setup wizard. Keep Hermes and its agent
+> native; use Docker only for terminal commands if I select it. Let me enter
+> credentials and approve sign-ins. Preserve existing profiles and logins, and
+> report the setup checks and anything still pending.
+
+See the [agent installation guide](docs/agent-install.md). The agent needs command
+access to your computer; an unconnected cloud agent cannot install locally.
 
 ## Direct downloads
 
@@ -89,11 +120,11 @@ Use `docker` instead of `local` for sandbox mode. Both modes install/check nativ
 7. After backend/auth-gate readiness, configure Tailscale raw TCP 9119 to the local backend. Save and print `installation-ready.txt` with separate Docker, Tailscale, Desktop, backend and forwarding results.
 8. Run interactive profile/model setup **last** if pending. Windows opens it in a separate PowerShell window; macOS/Linux run it after the readiness summary. Verify the actual Desktop login, model and remote access afterward.
 
-An existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. On macOS/Linux, override with `HERMES_BACKEND_PORT=9120` if desired. Windows saves its selected port in `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\backend-port`.
+An existing service using local 9119 is left running. The installer selects a free local port from 9120–9139 and persists it. Remote Tailscale port 9119 stays the same. On macOS/Linux, override with `HERMES_BACKEND_PORT=9120` if desired. Windows saves its selected port in `%LOCALAPPDATA%\HermesWorkshopInstaller\<your-profile-name>\backend-port`.
 
-An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Normal native workshop data lives under `~/.hermes/profiles/workshop` (macOS/Linux) or `%LOCALAPPDATA%\hermes\profiles\workshop` (Windows).
+An inherited `HERMES_HOME` is cleared only for the installer and backend processes. Saved settings and custom directories are not modified or migrated. Native profile data lives under `~/.hermes/profiles/<your-profile-name>` (macOS/Linux) or `%LOCALAPPDATA%\hermes\profiles\<your-profile-name>` (Windows). Existing profiles and installer state directories keep their original names.
 
-In Docker mode, Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the workshop backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running when that backend is selected.
+In Docker mode, Docker isolates terminal commands, not every native tool, plugin or browser capability. Tailscale Serve is tailnet access, not all-interface/public-internet exposure. Tailnet policy must allow TCP 9119. Existing TCP 9119 Serve mapping is pointed to the selected profile backend; unrelated Serve endpoints are not reset. Autostart is at user login; Docker must also be running when that backend is selected.
 
 ## Attendees: prepare first or start with the installer?
 
@@ -101,13 +132,13 @@ You can start directly with the platform installer. It checks prerequisites and 
 
 ## Windows local Desktop
 
-Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your normal account. If asked to restart after WSL2 prerequisites are enabled, restart and run the installer again. Compatible WSL 2.1.5 or newer is reused without an update. If a required WSL update fails with MSI 1603/service errors, close Docker Desktop, save WSL work, restart Windows and rerun as Administrator; check `wsl --version` and the local Temp `wsl-install-logs.txt` if it persists. In Docker Desktop, finish first-run setup and enable Settings > General > Use the WSL 2 based engine. The installer validates a local Docker Desktop WSL2 engine and runs hello-world; a remote Docker engine is rejected. It then installs native Hermes, the workshop profile, your dashboard login and a local backend service, and configures Tailscale TCP access.
+Double-click `Install-Hermes.cmd`; approve Administrator PowerShell using your normal account. If asked to restart after WSL2 prerequisites are enabled, restart and run the installer again. Compatible WSL 2.1.5 or newer is reused without an update. If a required WSL update fails with MSI 1603/service errors, close Docker Desktop, save WSL work, restart Windows and rerun as Administrator; check `wsl --version` and the local Temp `wsl-install-logs.txt` if it persists. In Docker Desktop, finish first-run setup and enable Settings > General > Use the WSL 2 based engine. The installer validates a local Docker Desktop WSL2 engine and runs hello-world; a remote Docker engine is rejected. It then installs native Hermes, the Starter Agent template, your dashboard login and a local backend service, and configures Tailscale TCP access.
 
-There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\workshop\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect the workshop Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select the workshop profile. The backend, and Docker engine when selected, run on this PC.
+There is no Linux URL prompt. Old saved remote URLs are ignored. The installer and generated `%LOCALAPPDATA%\HermesWorkshopInstaller\<your-profile-name>\Open-Hermes-Desktop.ps1` launcher clear inherited `HERMES_DESKTOP_REMOTE_URL` only in their own processes so an old remote setting does not redirect Desktop. Use that launcher to reopen Desktop. Saved environment settings and custom directories remain unchanged. Select your chosen profile. The backend, and Docker engine when selected, run on this PC.
 
 ## Choose your own profile name
 
-After prerequisite checks and before creating the profile/dashboard login, the installer asks **Hermes profile name [workshop]**. Enter a name such as `Hamburger`, `personal` or `Ben_01`. Press Enter to accept the shown default; reruns remember your last selection. Your chosen name is used for native profile data, private installer state, backend services, Desktop and the final wizard. Every new profile receives the same bundled preconfigured SOUL.md.
+After prerequisite checks and before creating the profile/dashboard login, the installer asks **Hermes profile name [starter-agent]**. Enter a name such as `Hamburger`, `personal` or `Ben_01`. Press Enter to accept the shown default; reruns remember your last selection. Your chosen name is used for native profile data, private installer state, backend services, Desktop and the final wizard. Every new profile receives the same bundled preconfigured SOUL.md.
 
 Names use 1–64 letters/digits, `_` or `-`, starting with a letter/digit. `default`, paths, spaces and reserved Windows device names are rejected. Choosing an existing name preserves its SOUL.md, model settings and normal-rerun login. Choosing a different name creates/selects another profile; it does not rename or delete the old one. Each machine still has one Tailscale TCP 9119 mapping, pointing to the selected profile’s backend.
 
@@ -127,7 +158,7 @@ To explicitly defer a pending wizard when rerunning Windows:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -SkipProfileSetup
 ```
 
-macOS/Linux can use `HERMES_SKIP_PROFILE_SETUP=1 bash scripts/setup-macos-linux.sh`. Deferral preserves the installed profile and keys. Configure a model in Desktop or with `hermes -p workshop model`; without a provider Hermes cannot chat. On Windows the profile wizard's own “Setup Complete” message is separate from the earlier installer readiness summary.
+macOS/Linux can use `HERMES_SKIP_PROFILE_SETUP=1 bash scripts/setup-macos-linux.sh`. Deferral preserves the installed profile and keys. Configure a model in Desktop or with `hermes -p starter-agent model`; without a provider Hermes cannot chat. On Windows the profile wizard's own “Setup Complete” message is separate from the earlier installer readiness summary.
 
 ## Reset a forgotten dashboard login
 
@@ -147,9 +178,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.
 
 Choose a new username and password locally. Resetting also rotates the session-signing secret; sign in again afterward. Profile data and model keys remain. Credentials are stored locally in the profile `.env` and protected installer `dashboard-login.txt`; these are not encrypted vaults. Never commit runtime data.
 
-## Workshop profile
+## Starter Agent profile
 
-`profiles/workshop/` contains:
+`profiles/starter-agent/` is the bundled **Starter Agent** template. Attendees
+choose their own installed profile name; existing profile folders are not renamed.
+The template contains:
 
 - `SOUL.md`: the exact **Safe Agent Starter** used by the workshop safeguards slide (originally slide 67), including approval gates, secrets handling, verification and recovery. Personalize `[YOUR NAME]`.
 - `config.yaml`: `terminal.backend: docker`, `terminal.cwd: /workspace` inside the container. This setting alone does not mount host folders.
@@ -179,3 +212,20 @@ Local terminal mode creates a `workspace` directory inside the selected Hermes p
 The GUI's Tailscale TCP port field is pre-filled with **9119** and labeled **(Default: 9119)**. Choose a port from 1024 to 65535. The selected port is used in the Serve rule, declared dashboard origin, auth checks and printed tailnet URL. A saved local backend port is reused; a fresh backend tries the chosen port, then an available local fallback. Local and tailnet ports are shown separately in the completion report.
 
 Script equivalents: `HERMES_TAILNET_PORT=9234 bash scripts/setup-macos-linux.sh` or `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -TailnetPort 9234`. To configure an installation completed by the original Desktop installer without source installation/build, add `HERMES_USE_EXISTING_DESKTOP=1` for Bash or `-UseExistingDesktop` for PowerShell. Finish the original installer first. Changing ports does not reset unrelated Tailscale Serve rules.
+
+## Community and maintenance
+
+This is a community companion, not an official Nous Research distribution.
+Contributions are welcome under the [MIT license](LICENSE), with existing
+copyright and dependency notices preserved.
+
+- [Contribute and run checks](CONTRIBUTING.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Report vulnerabilities privately](SECURITY.md)
+- [Get help](SUPPORT.md)
+- [Changelog](CHANGELOG.md) and [release checklist](docs/releasing.md)
+
+The project is maintained by [@benczb](https://github.com/benczb). There are no
+published GitHub releases yet; current CI packages and command-based source
+launches are previews. Policies here do not enable GitHub repository settings
+such as private vulnerability reporting or branch protection.

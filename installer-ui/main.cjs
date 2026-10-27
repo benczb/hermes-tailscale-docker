@@ -48,7 +48,7 @@ async function inspect(requestedMode) {
   ]);
   let tailConnected = false;
   try { tailConnected = JSON.parse(tailscale.output).BackendState === 'Running'; } catch {}
-  const soulPath = app.isPackaged ? path.join(root(), 'SOUL.md') : path.resolve(__dirname, '../profiles/workshop/SOUL.md');
+  const soulPath = app.isPackaged ? path.join(root(), 'SOUL.md') : path.resolve(__dirname, '../profiles/starter-agent/SOUL.md');
   const official = await officialInstallation({ cliAvailable: hermes.ok, bundledAppDetected: bundled?.ok === true });
   return {
     platform, architecture: os.arch(), system: `${os.type()} ${os.release()} · ${os.arch()}`, supported,

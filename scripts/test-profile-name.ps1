@@ -26,6 +26,9 @@ try {
     if (-not $failed -or (Get-Content $file -Raw) -ne 'personal') { throw 'Invalid explicit input changed the saved selection' }
     Save-Utf8 $file '../bad'
     $answers.Enqueue('')
-    if ((Select-WorkshopProfileName '' $file) -ne 'workshop') { throw 'Invalid saved default was trusted' }
+    if ((Select-WorkshopProfileName '' $file) -ne 'starter-agent') { throw 'Invalid saved default was trusted' }
+    Save-Utf8 $file 'workshop'
+    $answers.Enqueue('')
+    if ((Select-WorkshopProfileName '' $file) -ne 'workshop') { throw 'Existing workshop selection was not preserved' }
     Write-Host 'Profile name tests passed: safe names, retries, saved defaults and explicit overrides.'
 } finally { Remove-Item -LiteralPath $fixture -Recurse -Force }

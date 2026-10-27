@@ -27,7 +27,7 @@ The wizard is a **preview**, not a replacement for the published terminal ZIPs y
 
 ## Build and test
 
-Use Node 22 or later on the build machine:
+Use Node.js 24 or later on the build machine:
 
 ```sh
 cd installer-ui
