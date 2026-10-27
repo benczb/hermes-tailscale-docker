@@ -1,5 +1,13 @@
 # Hermes Starter Agent Setup
 
+![Hermes Desktop, Docker terminal and Tailscale setup](docs/media/hermes-setup-cover.png)
+
+### Installation walkthrough
+
+[Watch the step-by-step setup video with cursor guidance and close-up zooms](https://github.com/benczb/hermes-tailscale-docker/raw/refs/heads/main/docs/media/hermes-install-walkthrough.mp4)
+
+The video demonstrates the installer UI from its code, including the original Desktop installer handoff. It is not a recording of a completed Windows installation.
+
 A guided installer for **Hermes Desktop, optional Docker terminal tools and
 Tailscale** on your computer. Choose your profile name, dashboard login and access
 port **(Default: 9119)** before installation.
