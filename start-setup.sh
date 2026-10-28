@@ -20,8 +20,8 @@ node -e 'if (Number(process.versions.node.split(".")[0]) < 24) process.exit(1)' 
 if command -v shasum >/dev/null; then hash_tool=shasum;
 elif command -v sha256sum >/dev/null; then hash_tool=sha256sum;
 else fail 'A SHA-256 tool (shasum or sha256sum) is required.'; fi
-revision=69ff5a45e8181be6c6ceaa4470fb4559ec1344b6
-expected=bb36590787aed474f4e75de4f2b4f6ca097867e6eb58d4b2f02b8cd1d8714b90
+revision=d23fa36145985bc9ea02f297ef9e65afb445f726
+expected=dc3fba50bff6322ebcfaad59611b231a5b362a0973f98eca4c11ecea561e0bda
 printf '%s\n' 'Starting Hermes Setup Companion preview from a fixed source revision.' 
 printf '%s\n' 'This downloads source and npm dependencies and may compile native GUI helpers.'
 printf '%s\n' 'Hermes/component installation starts only after you review settings in the wizard.'

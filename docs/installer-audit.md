@@ -98,7 +98,7 @@ macOS/Linux run the wizard in a child shell after printing/saving readiness; its
 
 ## Profile-name selection
 
-Before profile creation and dashboard credentials, all platform installers prompt for a profile name (workshop initially, the last selected name on rerun). Windows -ProfileName and Bash HERMES_PROFILE_NAME explicitly select a profile without prompting. Names are portable 1–64 ASCII letters/digits, underscores and hyphens, with an alphanumeric first character; default and Windows device names are reserved. Invalid interactive input reprompts. Invalid explicit input stops before installation.
+Before profile creation and dashboard credentials, all platform installers prompt for a profile name (starter-agent initially, the last selected name on rerun). Windows -ProfileName and Bash HERMES_PROFILE_NAME explicitly select a profile without prompting. Names are portable 1–64 ASCII letters/digits, underscores and hyphens, with an alphanumeric first character; hermes, default, test, tmp, root, sudo and Windows device names are reserved. Invalid interactive input reprompts. Invalid explicit input stops before installation.
 
 Prerequisite downloads and last-profile are kept in private _bootstrap state, separate from the chosen profile’s state. Selected profile files, credential markers, service/task names and generated launchers use the selected name. Existing SOUL/model/login data is preserved for an existing profile; a different name creates/selects another profile, not a rename. New profiles receive the bundled preconfigured SOUL.md. The final interactive wizard remains last, after Desktop/backend/forwarding readiness. One Tailscale TCP 9119 mapping per machine points to the selected profile backend.
 

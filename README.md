@@ -65,10 +65,10 @@ Hermes gateway before reporting completion.
 
 | Windows x64 | macOS | Linux x64 |
 |---|---|---|
-| [Download setup EXE](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Setup-Companion-0.3.0-preview.1-windows-x64.exe) | [Apple Silicon app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-mac-arm64.zip) · [Intel app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-mac-x64.zip) | [Download AppImage](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-linux-x86_64.AppImage) |
+| [Download setup EXE](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.2/Hermes-Setup-Companion-0.3.0-preview.2-windows-x64.exe) | [Apple Silicon app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.2/Hermes-Companion-0.3.0-preview.2-mac-arm64.zip) · [Intel app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.2/Hermes-Companion-0.3.0-preview.2-mac-x64.zip) | [Download AppImage](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.2/Hermes-Companion-0.3.0-preview.2-linux-x86_64.AppImage) |
 
 [Window-by-window guide](docs/gui-setup.md) ·
-[Preview release and checksums](https://github.com/benczb/hermes-tailscale-docker/releases/tag/v0.3.0-preview.1).
+[Preview release and checksums](https://github.com/benczb/hermes-tailscale-docker/releases/tag/v0.3.0-preview.2).
 The older [terminal installer ZIPs](docs/advanced-setup.md#direct-downloads) remain
 an advanced option and open a terminal/PowerShell window.
 

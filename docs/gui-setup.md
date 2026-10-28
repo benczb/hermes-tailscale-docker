@@ -1,6 +1,6 @@
 # Install in a window
 
-Download the matching graphical package from the [graphical preview release](https://github.com/benczb/hermes-tailscale-docker/releases/tag/v0.3.0-preview.1).
+Download the matching graphical package from the [graphical preview release](https://github.com/benczb/hermes-tailscale-docker/releases/tag/v0.3.0-preview.2).
 These are community companion packages, not the Nous Research Desktop installer itself.
 
 ## Windows

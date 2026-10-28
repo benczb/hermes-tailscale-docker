@@ -20,7 +20,9 @@ the terminal tool only. Tailscale runs on the host. No separate Linux machine or
 backend IP is required. Let users choose a personal profile, dashboard username,
 password, terminal backend, and TCP port (default 9119) in the graphical wizard.
 The bundled template folder is profiles/starter-agent, displayed as Starter Agent.
-It is a template, not a required installed profile name. Preserve existing profile
+It is a template, not a required installed profile name. Hermes reserves hermes,
+default, test, tmp, root and sudo (case-insensitive here); Windows device names
+are also unavailable. Suggest a personal name such as ben-personal or test-agent. Preserve existing profile
 and installer state directory names when rerunning an older installation.
 
 Use the original Desktop installer on supported Windows/Apple Silicon systems.
