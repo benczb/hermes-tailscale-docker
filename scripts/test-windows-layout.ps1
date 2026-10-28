@@ -21,11 +21,19 @@ try {
     $result = Join-Path $fixture 'observed.txt'
     $fakeHermes = Join-Path $fixture 'fake-hermes.ps1'
     $fakeCode = "[IO.File]::WriteAllText('$($result.Replace("'", "''"))', [string]`$env:HERMES_HOME)`n@{remote=[string]`$env:HERMES_DESKTOP_REMOTE_URL; arguments=`$args} | ConvertTo-Json | Set-Content -LiteralPath '$($result.Replace("'", "''" )).json'`nexit 0"
+    $fakeCode = 'if ($args[2] -eq ''gateway'') { Write-Output ''{"state":"ready","endpoint":{"pid":1234}}''; exit 0 }' + "`n" + $fakeCode
     [IO.File]::WriteAllText($fakeHermes, $fakeCode)
     $escapedHermes = $fakeHermes.Replace("'", "''")
     $ProfileName = 'workshop'
     $backendPort = 9120
     $backend = Join-Path $fixture 'backend.ps1'
+    $gatewayReceipt = Join-Path $fixture 'gateway-ready.json'
+    $escapedReceipt = $gatewayReceipt.Replace("'", "''")
+    $generator = $ast.Find({ param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -eq '$backendCode'
+    }, $true)
+    if (-not $generator) { throw 'Missing gateway/backend generator' }
+    . ([scriptblock]::Create($generator.Extent.Text))
     function Save-Utf8 { param($Path, $Text) [IO.File]::WriteAllText($Path, $Text) }
     $emitter = $ast.Find({ param($node)
         $node -is [System.Management.Automation.Language.CommandAst] -and

@@ -27,7 +27,7 @@
       <section id="settings" aria-labelledby="settings-title">
         <p class="eyebrow">01 / YOUR SETTINGS</p>
         <h1 id="settings-title" tabindex="-1">Make Hermes yours.</h1>
-        <p class="intro">Choose your profile and login first. Nothing is installed until you review and start setup.</p>
+        <p class="intro">Choose your profile and login first. Hermes and its components are configured after you review and start setup.</p>
         <form id="settings-form">
           <fieldset class="terminal-choice">
             <legend>How should Hermes Desktop be installed?</legend>
@@ -99,9 +99,16 @@
           <li data-stage="runtime"><span class="indicator"></span><span>Native Hermes runtime</span><small>Waiting</small></li>
           <li data-stage="profile"><span class="indicator"></span><span>Profile and dashboard login</span><small>Waiting</small></li>
           <li data-stage="desktop"><span class="indicator"></span><span id="desktop-stage-label">Hermes Desktop and backend</span><small>Waiting</small></li>
+          <li data-stage="gateway"><span class="indicator"></span><span>Start and verify Hermes gateway</span><small>Waiting</small></li>
           <li data-stage="network"><span class="indicator"></span><span>Tailscale TCP forwarding</span><small>Waiting</small></li>
           <li data-stage="verify"><span class="indicator"></span><span>Installation report</span><small>Waiting</small></li>
         </ul>
+        <div id="component-wait" class="component-wait" hidden role="status" aria-live="polite">
+          <h2 id="wait-title">Preparing a component</h2>
+          <p id="wait-message"></p>
+          <div class="actions"><button id="open-component" type="button">Open component</button><button id="check-component" type="button" class="secondary">Check again</button></div>
+          <p id="wait-note" class="help"></p>
+        </div>
         <form id="component-input" class="note" hidden><h2>One component needs your attention</h2><p id="component-message"></p><label for="component-answer">Response</label><input id="component-answer" type="password" autocomplete="off"><p class="help">For a “Press Return” prompt, leave this blank and continue. Your response is hidden from the activity log.</p><button type="submit">Continue setup</button></form>
         <p id="component-help" class="help">Follow any Docker, Tailscale, Apple or Windows dialogs that open.</p>
         <details id="activity"><summary>Installation details</summary><pre id="log" tabindex="0" aria-label="Installation activity"></pre><button id="manual-prompt" class="secondary small">A component is waiting for input</button></details>

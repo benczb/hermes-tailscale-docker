@@ -76,12 +76,12 @@ class CredentialPrompts {
 function installCommand(settings, root, platform = process.platform) {
   if (platform === 'win32') return {
     file: 'powershell.exe',
-    args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'setup-windows.ps1'), '-ProfileName', settings.profile, '-TerminalBackend', settings.terminalBackend || 'docker', '-TailnetPort', String(settings.accessPort || 9119), '-SkipProfileSetup', ...(settings.desktopInstall === 'official' ? ['-UseExistingDesktop'] : []), ...(settings.reset ? ['-ResetDashboardAuth'] : [])]
+    args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'setup-windows.ps1'), '-GuiMode', '-ProfileName', settings.profile, '-TerminalBackend', settings.terminalBackend || 'docker', '-TailnetPort', String(settings.accessPort || 9119), '-SkipProfileSetup', ...(settings.desktopInstall === 'official' ? ['-UseExistingDesktop'] : []), ...(settings.reset ? ['-ResetDashboardAuth'] : [])]
   };
   return { file: '/bin/bash', args: [path.join(root, 'setup-macos-linux.sh')] };
 }
 function installEnvironment(settings, inherited = process.env) {
-  return { ...inherited, HERMES_PROFILE_NAME: settings.profile, HERMES_TERMINAL_BACKEND: settings.terminalBackend || 'docker', HERMES_TAILNET_PORT: String(settings.accessPort || 9119), HERMES_USE_EXISTING_DESKTOP: settings.desktopInstall === 'official' ? '1' : '0', HERMES_SKIP_PROFILE_SETUP: '1', HERMES_RESET_DASHBOARD_AUTH: settings.reset ? '1' : '0', TERM: 'xterm-256color' };
+  return { ...inherited, HERMES_GUI_MODE: '1', HERMES_PROFILE_NAME: settings.profile, HERMES_TERMINAL_BACKEND: settings.terminalBackend || 'docker', HERMES_TAILNET_PORT: String(settings.accessPort || 9119), HERMES_USE_EXISTING_DESKTOP: settings.desktopInstall === 'official' ? '1' : '0', HERMES_SKIP_PROFILE_SETUP: '1', HERMES_RESET_DASHBOARD_AUTH: settings.reset ? '1' : '0', TERM: 'xterm-256color' };
 }
 function readinessPath(profile, platform = process.platform, env = process.env) {
   return platform === 'win32'
@@ -90,10 +90,20 @@ function readinessPath(profile, platform = process.platform, env = process.env) 
 }
 function stageFromLine(line) {
   if (/INSTALLATION CHECKS COMPLETE/.test(line)) return 'verify';
+  if (/Starting and verifying the Hermes gateway|Hermes gateway: running/.test(line)) return 'gateway';
   if (/serve status|Ready: http:|Tailnet URL:|Tailscale TCP \d+/.test(line)) return 'network';
   if (/Building\/checking Hermes Desktop|build-only|building.*desktop|Reusing Hermes Desktop/i.test(line)) return 'desktop';
   if (/Using Hermes profile:|Configuring the (?:docker|local) terminal|Choose your Hermes dashboard login|Keeping existing profile:/.test(line)) return 'profile';
   if (/Hermes Agent Installer|Hermes Agent cloned|Installing the latest stable/.test(line)) return 'runtime';
   return null;
 }
-module.exports = { validateSettings, stripTerminal, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, readinessPath, stageFromLine };
+function componentEvent(line) {
+  const wait = line.match(/^HERMES_SETUP_WAIT\|(docker|tailscale|appinstaller|wsl|brew|buildtools)\|(auto|manual)\|(.{1,2000})$/);
+  if (wait) return { type: 'component-wait', component: wait[1], automatic: wait[2] === 'auto', message: wait[3] };
+  const ready = line.match(/^HERMES_SETUP_READY\|(docker|tailscale|appinstaller|wsl|brew|buildtools)$/);
+  if (ready) return { type: 'component-ready', component: ready[1] };
+  const restart = line.match(/^HERMES_SETUP_RESTART\|(.{1,2000})$/);
+  if (restart) return { type: 'restart-required', message: restart[1] };
+  return null;
+}
+module.exports = { validateSettings, stripTerminal, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, readinessPath, stageFromLine, componentEvent };

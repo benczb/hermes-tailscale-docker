@@ -5,6 +5,17 @@ a complete reconstruction of older commits. No GitHub release has been published
 
 ## Unreleased
 
+### Graphical installation update
+
+- Windows graphical setup EXE with companion shortcuts; macOS app packages.
+- Initiate missing Docker/Tailscale installation and open their apps. Keep the
+  installer session alive through readiness/sign-in checks; retry failed component
+  installations in the window.
+- Start and verify the selected profile's Hermes gateway through `gateway ensure`
+  before authenticated backend/forwarding completion. Windows runs the gateway
+  from the limited-user task and keeps PowerShell workers hidden.
+- Versioned graphical prerelease publishing with SHA-256 checksums.
+
 ### Added
 
 - Command launchers for macOS/Linux and native Windows that verify a fixed source

@@ -23,7 +23,35 @@ This preview supports the original bootstrap installer's standard native layout.
 - Retry with remembered profile/username. Passwords must be re-entered after a restart. No automatic reboot is initiated.
 - Success requires the backend script to exit successfully and produce its installation verification report. Actual conversation and second-device tailnet access still need verification.
 
-The wizard is a **preview**, not a replacement for the published terminal ZIPs yet. Its prompt bridge is covered by unit tests, but each OS still requires a clean-machine end-to-end run. Upstream prompt text can change; a manual component-response field is available in installation details when a component waits for input.
+The wizard is a **preview**. Versioned graphical packages are built for public prereleases: a Windows setup EXE, macOS app ZIPs and a Linux AppImage. The older terminal ZIPs remain an advanced alternative. Each OS still requires a clean-machine end-to-end run. Upstream prompt text can change; a manual component-response field is available in installation details.
+
+## Guided component installation
+
+Windows setup initiates missing Docker Desktop and Tailscale installation through
+winget, then opens their host apps. macOS setup installs missing Homebrew and
+Docker/Tailscale casks, then opens the apps. These installation steps happen before
+readiness waits. In either GUI flow, Docker startup/first-run and Tailscale connection
+checks stay in the installer window and recheck every five seconds. Component
+installation failures require an explicit in-window retry; they are never retried
+by a timer. Local terminal mode skips Docker and Windows WSL preparation.
+
+Tailscale sign-in, device approval, macOS VPN/system-extension permissions, Docker
+terms and OS dialogs still require the user. Windows can require a reboot for WSL2;
+the wizard explains how to reopen the installed companion and resume. Passwords
+must be entered again; they are not saved for resume.
+
+## Gateway startup
+
+After profile/Desktop configuration, the login backend launcher runs
+`hermes -p <profile> gateway ensure --json --timeout 60`. It requires a `ready`
+result before starting the authenticated loopback backend. Windows does this in
+the limited-user Scheduled Task, not the elevated installer, so Desktop can attach
+to the correct user-owned gateway. The credential-free result is saved as
+`gateway-ready.json`; stale results are removed before the service is restarted.
+Completion requires both gateway readiness and the backend auth check. On login,
+the launcher ensures the gateway again. No duplicate gateway is forced and no
+unrelated gateway/service is stopped. Provider inference and peer access still
+require separate verification.
 
 ## Build and test
 
@@ -39,7 +67,7 @@ npm run dist
 
 The GUI build workflow creates separate Windows x64, Intel macOS, Apple Silicon macOS and Linux x64 packages. It bundles the exact platform scripts from the same commit. Build each package on its native OS so `node-pty` is built for the right platform and Electron ABI.
 
-Mac preview ZIPs use an ad-hoc code signature, verified during the build. This validates package integrity but does not establish a trusted publisher or satisfy Gatekeeper notarization. Windows packages are unsigned portable executables that request administrator approval. Public distribution still needs Apple Developer signing/notarization and Windows Authenticode signing, plus clean-machine validation. Changing the archive format does not remove those trust requirements. Intel Macs use a source build of Hermes Desktop; an Apple Silicon-only upstream DMG is never substituted.
+Mac preview ZIPs use an ad-hoc code signature, verified during the build. This validates package integrity but does not establish a trusted publisher or satisfy Gatekeeper notarization. Windows packages are unsigned NSIS setup executables that install the companion and create Start menu/desktop shortcuts. The companion requests administrator approval. Public distribution still needs Apple Developer signing/notarization and Windows Authenticode signing, plus clean-machine validation. Changing the archive format does not remove those trust requirements. Intel Macs use a source build of Hermes Desktop; an Apple Silicon-only upstream DMG is never substituted.
 
 ## Credential handling
 

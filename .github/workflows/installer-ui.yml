@@ -36,8 +36,22 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: installer-ui/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm ci
       - run: npm test
+      - name: Test component recovery and gateway startup without installing apps
+        run: python ../scripts/test-component-setup.py
+      - name: Test generated Windows gateway launcher and component recovery
+        shell: pwsh
+        run: ../scripts/test-component-setup.ps1
+      - name: Test Windows PowerShell 5.1 component recovery
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ../scripts/test-component-setup.ps1
+      - name: Run platform script regressions
+        run: python ../scripts/test-installers.py
       - name: Smoke-test native PTY using Electron's runtime
         run: node test/pty-smoke.cjs
       - name: Build unsigned preview application
@@ -55,3 +69,49 @@ jobs:
             installer-ui/dist/*.exe
             installer-ui/dist/*.AppImage
           if-no-files-found: error
+  release:
+    name: Publish graphical prerelease
+    needs: package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hermes-setup-preview-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create checksums and release notes
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum *.exe *.zip *.AppImage > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
+          cat > release-notes.md <<'NOTES'
+          Graphical Hermes Setup Companion preview for Windows x64, macOS Apple Silicon/Intel and Linux x64.
+
+          Windows: open the setup EXE, install the companion and launch it from the shortcut. No PowerShell window or Node.js installation is needed to open the companion. macOS: extract the matching app ZIP and open the app. Linux: use the AppImage on a supported desktop.
+
+          The companion initiates missing Docker/Tailscale installation, opens their apps, and continues in the same window through first-run and connection checks. Failed component installs have an explicit in-window retry. User sign-in, OS approvals and required reboots remain interactive. Local terminal mode skips Docker/WSL setup.
+
+          Hermes Desktop and its agent stay native; only terminal tools optionally run in Docker. The gateway is started through Hermes gateway ensure and must report ready before completion.
+
+          The original Hermes Desktop installer is used on supported Windows/Apple Silicon systems. Intel Mac and Linux require the explicit source alternative. Intel Desktop builds remain best effort. Bundled/Store editions still require explicit integration.
+
+          These preview builds are unsigned on Windows and ad-hoc signed on macOS, without publisher signing/notarization. Platform trust checks may prevent opening them. Do not disable system protections. Automated builds and mocked checks are not clean-machine validation. Model/provider use and remote-device access still need verification.
+          NOTES
+      - name: Publish immutable versioned assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./installer-ui/package.json').version")
+          tag="v$version"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists; its assets will not be overwritten."
+          else
+            gh release create "$tag" release-assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Hermes Setup Companion $version" --notes-file release-notes.md
+          fi

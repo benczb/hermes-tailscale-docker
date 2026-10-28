@@ -35,6 +35,12 @@ elif name == 'tailscale':
 elif name == 'sudo':
     import subprocess
     sys.exit(subprocess.call(args))
+elif name in ('systemctl', 'launchctl'):
+    if (name == 'systemctl' and 'restart' in args) or (name == 'launchctl' and args[:1] == ['bootstrap']):
+        import subprocess
+        for backend in (home / '.hermes-workshop-installer').glob('*/backend.sh'):
+            result = subprocess.run(['/bin/bash', str(backend)], env=os.environ)
+            if result.returncode: sys.exit(result.returncode)
 elif name == 'curl':
     if '--write-out' in args:
         busy = os.environ.get('MOCK_FAIL') in ('occupied-port', 'explicit-busy') and 'http://127.0.0.1:9119' in args
@@ -49,7 +55,11 @@ elif name == 'curl':
 elif name == 'brew' and args == ['--prefix', 'openssl@3']: print('/mock/homebrew/opt/openssl@3')
 elif name == 'openssl': print('a' * (int(args[-1]) * 2))
 elif name == 'hermes':
-    if args[:2] == ['profile', 'install']:
+    if args[2:4] == ['gateway', 'ensure']:
+        state = os.environ.get('MOCK_GATEWAY_STATE', 'ready')
+        print(json.dumps({'state': state, 'endpoint': {'pid': 1234}}))
+        if state == 'absent': sys.exit(5)
+    elif args[:2] == ['profile', 'install']:
         profile = args[args.index('--name') + 1]
         target = home / '.hermes/profiles' / profile
         target.mkdir(parents=True)
@@ -95,7 +105,7 @@ class Installers(unittest.TestCase):
                     if failure == 'official-reuse':
                         (bin_dir / 'brew').unlink()
                     log = fixture / 'calls.jsonl'
-                    env = dict(os.environ, HOME=str(user_home), PATH=str(bin_dir) + os.pathsep + os.defpath, MOCK_LOG=str(log), MOCK_OS=platform, MOCK_FAIL='' if failure in ('custom-home', 'fresh-install') else failure, MOCK_HERMES_SOURCE=str(hermes_source), MOCK_BIN=str(bin_dir))
+                    env = dict(os.environ, HOME=str(user_home), PATH=str(bin_dir) + os.pathsep + os.environ['PATH'], MOCK_LOG=str(log), MOCK_OS=platform, MOCK_FAIL='' if failure in ('custom-home', 'fresh-install') else failure, MOCK_HERMES_SOURCE=str(hermes_source), MOCK_BIN=str(bin_dir))
                     custom_home = fixture / 'existing custom hermes'
                     custom_home.mkdir()
                     sentinel = custom_home / 'keep.txt'
@@ -112,6 +122,7 @@ class Installers(unittest.TestCase):
                     env.pop('HERMES_TERMINAL_BACKEND', None)
                     env.pop('HERMES_USE_EXISTING_DESKTOP', None)
                     env.pop('HERMES_TAILNET_PORT', None)
+                    env.pop('HERMES_GUI_MODE', None)
                     access_port = '9234' if failure == 'custom-port' else '9119'
                     if failure == 'custom-port': env['HERMES_TAILNET_PORT'] = access_port
                     if failure == 'official-reuse': env['HERMES_USE_EXISTING_DESKTOP'] = '1'
@@ -203,12 +214,19 @@ class Installers(unittest.TestCase):
                     backend = user_home / '.hermes-workshop-installer' / selected_profile / 'backend.sh'
                     subprocess.run(['/bin/bash', '-n', str(backend)], check=True)
                     self.assertIn('serve --isolated --host 127.0.0.1 --port ' + local_port, backend.read_text())
+                    self.assertLess(backend.read_text().index('gateway ensure'), backend.read_text().index('serve --isolated'))
+                    self.assertIn('Gateway: running and ready', ready_state.read_text())
                     self.assertEqual((backend.parent / 'backend-port').read_text().strip(), local_port)
                     self.assertFalse(any(c[0] in ('kill', 'pkill') for c in calls))
                     # Login services can inherit HERMES_HOME independently of the installer.
                     backend_env = dict(env, HERMES_HOME=str(custom_home))
                     probe = subprocess.run(['/bin/bash', str(backend)], env=backend_env, capture_output=True, text=True, timeout=10)
                     self.assertEqual(probe.returncode, 0, probe.stdout + probe.stderr)
+                    for bad_state in ('absent', 'starting'):
+                        before = sum('serve' in json.loads(line) for line in log.read_text().splitlines())
+                        failed_gateway = subprocess.run(['/bin/bash', str(backend)], env=dict(backend_env, MOCK_GATEWAY_STATE=bad_state), capture_output=True, text=True, timeout=10)
+                        self.assertNotEqual(failed_gateway.returncode, 0)
+                        self.assertEqual(sum('serve' in json.loads(line) for line in log.read_text().splitlines()), before)
                     self.assertEqual(sentinel.read_text(), 'existing data')
                     self.assertFalse((custom_home / 'profiles').exists())
                     if platform == 'Darwin':

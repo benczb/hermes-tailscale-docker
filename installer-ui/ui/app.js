@@ -2,7 +2,18 @@
 const $ = id => document.getElementById(id);
 const bridge = window.hermesSetup;
 const names = ['settings', 'checks', 'review', 'installing', 'finished'];
-let inspection, running = false, awaitingOfficial = false, currentStage = -1;
+let inspection, running = false, awaitingOfficial = false, currentStage = -1, componentTimer, waitingComponent;
+function clearComponentWait() {
+  clearTimeout(componentTimer); componentTimer = null; waitingComponent = null;
+  $('component-wait').hidden = true; $('manual-prompt').disabled = false;
+}
+async function checkComponent() {
+  if (!running || !waitingComponent || $('check-component').disabled) return;
+  clearTimeout(componentTimer);
+  $('check-component').disabled = true;
+  try { await bridge.componentAction('check'); }
+  catch (e) { $('check-component').disabled = false; error(e.message); }
+}
 function error(message = '') { $('error').textContent = message; $('error').hidden = !message; }
 function show(name) {
   for (const item of names) $(item).hidden = item !== name;
@@ -53,6 +64,21 @@ function setStage(name) {
   $('progress-copy').textContent = rows[index].children[1].textContent + '. Follow any account or system dialogs that open.';
 }
 function event(data) {
+  if (data.type === 'component-wait') {
+    clearTimeout(componentTimer); waitingComponent = data;
+    const labels = { docker: 'Docker Desktop', tailscale: 'Tailscale', appinstaller: 'Microsoft App Installer', wsl: 'Windows WSL2', brew: 'Homebrew', buildtools: 'Apple Command Line Tools' };
+    $('wait-title').textContent = labels[data.component] + ' needs your attention';
+    $('wait-message').textContent = data.message;
+    $('wait-note').textContent = data.automatic ? 'Setup stays open, checks every 5 seconds, and continues automatically when ready.' : 'Your settings are kept. Resolve the component error, then retry this step without restarting setup.';
+    $('open-component').textContent = ({ docker: 'Open Docker Desktop', tailscale: 'Open Tailscale', appinstaller: 'Get App Installer', wsl: 'WSL help', brew: 'Homebrew help', buildtools: 'Open Apple tools setup' })[data.component];
+    $('check-component').textContent = data.automatic ? 'Check again' : 'Retry this step';
+    $('check-component').disabled = false; $('component-input').hidden = true; $('manual-prompt').disabled = true;
+    $('component-wait').hidden = false; $('progress-copy').textContent = 'Continue the component setup below. You do not need to restart the installer.';
+    if (data.automatic) componentTimer = setTimeout(checkComponent, 5000);
+  }
+  if (data.type === 'component-checking') { $('wait-note').textContent = 'Checking this component…'; $('check-component').disabled = true; }
+  if (data.type === 'component-ready') clearComponentWait();
+  if (data.type === 'restart-required') { clearComponentWait(); $('progress-copy').textContent = data.message; }
   if (data.type === 'started') { awaitingOfficial = false; $('original-handoff').hidden = true; $('install-stages').hidden = false; $('activity').hidden = false; $('cancel').textContent = 'Stop installation'; running = true; currentStage = -1; $('log').textContent = ''; setStage('prerequisites'); }
   if (data.type === 'line') {
     $('log').textContent = ($('log').textContent + data.line + '\n').slice(-100000); $('log').scrollTop = $('log').scrollHeight;
@@ -61,8 +87,8 @@ function event(data) {
   if (data.type === 'input') { $('component-message').textContent = data.message; $('component-answer').type = data.secret ? 'password' : 'text'; $('component-input').hidden = false; $('component-answer').focus(); }
   if (data.type === 'input-cleared') { $('component-input').hidden = true; $('component-answer').value = ''; }
   if (data.type === 'finished') {
-    running = false; $('component-answer').value = ''; $('component-input').hidden = true;
-    $('finished-title').textContent = data.ok ? 'Installation checks complete.' : data.canceled ? 'Setup stopped.' : 'Setup needs attention.';
+    running = false; clearComponentWait(); $('component-answer').value = ''; $('component-input').hidden = true;
+    $('finished-title').textContent = data.ok ? 'Installation checks complete.' : data.restartRequired ? 'Restart Windows to continue.' : data.canceled ? 'Setup stopped.' : 'Setup needs attention.';
     $('finished-copy').textContent = data.ok ? 'Your local components passed the installer checks. Open Desktop to select your AI provider and model.' : data.message;
     $('report').textContent = data.ok ? data.report : $('log').textContent.slice(-12000);
     $('connection').hidden = !data.url; $('dashboard-address').textContent = data.url || '';
@@ -105,6 +131,9 @@ async function beginInstallation() {
 $('install').addEventListener('click', beginInstallation);
 $('check-original').addEventListener('click', beginInstallation);
 $('open-original').addEventListener('click', async () => { try { await bridge.openOriginalInstaller(); } catch (e) { error(e.message); } });
+$('check-component').addEventListener('click', checkComponent);
+$('open-component').addEventListener('click', async () => { try { await bridge.componentAction('open'); } catch (e) { error(e.message); } });
+window.addEventListener('beforeunload', () => clearTimeout(componentTimer));
 $('component-input').addEventListener('submit', async e => { e.preventDefault(); const response = $('component-answer').value; $('component-answer').value = ''; try { await bridge.respond(response); } catch (e) { error(e.message); } });
 $('manual-prompt').addEventListener('click', () => { $('component-message').textContent = 'Check the last installation message above and enter the requested response. Do not enter commands.'; $('component-answer').type = 'password'; $('component-input').hidden = false; $('component-answer').focus(); });
 $('cancel').addEventListener('click', async () => { if (awaitingOfficial) { awaitingOfficial = false; show('review'); return; } if (window.confirm('Stop setup? Components already installed will be kept.')) await bridge.cancel(); });

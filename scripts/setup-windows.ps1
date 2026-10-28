@@ -7,6 +7,7 @@ param(
     [switch]$ResetDashboardAuth,
     [switch]$SkipProfileSetup,
     [switch]$UseExistingDesktop,
+    [switch]$GuiMode,
     [ValidateRange(1024, 65535)][int]$TailnetPort = 9119
 )
 Set-StrictMode -Version Latest
@@ -64,6 +65,53 @@ function New-HexSecret {
 function Save-Utf8 {
     param([string]$Path, [string]$Text)
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
+}
+function Wait-WorkshopComponent {
+    param([ValidateSet('docker','tailscale','appinstaller','wsl')][string]$Component,
+          [scriptblock]$Check, [string]$Message, [switch]$Gui)
+    # In the graphical companion, keep the same installer session alive while a
+    # component starts or the user completes its first-run/sign-in dialog.
+    while (-not (& $Check)) {
+        if (-not $Gui) { throw $Message }
+        Write-Host "HERMES_SETUP_WAIT|$Component|auto|$Message"
+        [void](Read-Host 'Component check pending; continue from the installer window')
+    }
+    if ($Gui) { Write-Host "HERMES_SETUP_READY|$Component" }
+}
+function Invoke-WorkshopComponentStep {
+    param([ValidateSet('docker','tailscale','appinstaller','wsl')][string]$Component,
+          [scriptblock]$Action, [string]$Message, [switch]$Gui)
+    while ($true) {
+        try { & $Action; break }
+        catch {
+            if (-not $Gui) { throw }
+            # Failed installs/updates need an explicit retry, never a timer that
+            # repeatedly runs an installer or accepts component agreements.
+            Write-Host "$Component needs attention: $($_.Exception.Message)"
+            Write-Host "HERMES_SETUP_WAIT|$Component|manual|$Message"
+            [void](Read-Host 'Use Retry this step in the installer after resolving the problem')
+        }
+    }
+    if ($Gui) { Write-Host "HERMES_SETUP_READY|$Component" }
+}
+function Get-WorkshopTailnetIp {
+    try {
+        $json = (& tailscale status --json 2>$null | Out-String)
+        if ($LASTEXITCODE -ne 0) { return '' }
+        $status = $json | ConvertFrom-Json
+        if ($status.BackendState -ne 'Running') { return '' }
+        $ip = (& tailscale ip -4 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -eq 0 -and $ip -match '^100\.\d+\.\d+\.\d+$') { return $ip }
+    } catch { }
+    return ''
+}
+function Start-WorkshopTailscale {
+    # Launch the host GUI. Never block setup in an interactive `tailscale up`
+    # subprocess while waiting for a browser login in graphical mode.
+    $application = Join-Path $env:ProgramFiles 'Tailscale\tailscale-ipn.exe'
+    if (Test-Path $application) { Start-Process $application }
+    try { & tailscale up --timeout=5s; if ($LASTEXITCODE -ne 0) { Write-Host 'Finish connecting in the Tailscale app or browser.' } }
+    catch { Write-Host 'Open Tailscale and finish connecting. Setup will check again.' }
 }
 function Test-WorkshopProfileName {
     param([string]$Name)
@@ -179,9 +227,14 @@ try {
                 $featuresChanged = $true
             }
         }
-        if ($featuresChanged) { throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.' }
-        Ensure-WorkshopWsl
-        Invoke-Checked wsl.exe @('--set-default-version', '2')
+        if ($featuresChanged) {
+            if ($GuiMode) { Write-Host 'HERMES_SETUP_RESTART|Windows enabled WSL2 prerequisites. Restart Windows, reopen Hermes Setup Companion and re-enter your password to resume.' }
+            throw 'WSL2 prerequisites were enabled. Restart Windows, then rerun this installer. Hardware virtualization must be enabled in firmware.'
+        }
+        Invoke-WorkshopComponentStep -Component wsl -Gui:$GuiMode -Message 'Windows WSL2 could not be prepared. Review the activity details. If MSI 1603 or service errors appear, close Docker, restart Windows and reopen this installer. Otherwise resolve the update error and choose Retry this step.' -Action {
+            Ensure-WorkshopWsl
+            Invoke-Checked wsl.exe @('--set-default-version', '2')
+        }
     } else {
         Write-Host 'Local terminal selected. Docker and WSL2 are not installed, updated or checked.'
     }
@@ -197,12 +250,19 @@ try {
     Set-Acl -Path $state -AclObject $acl
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $env:PATH = "$env:LOCALAPPDATA\hermes\bin;$env:ProgramFiles\Docker\Docker\resources\bin;$env:ProgramFiles\Tailscale;$env:PATH"
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'Install Microsoft App Installer (winget), then rerun.' }
+    $needsPackages = ($TerminalBackend -eq 'docker' -and -not (Get-Command docker -ErrorAction SilentlyContinue)) -or -not (Get-Command tailscale -ErrorAction SilentlyContinue)
+    if ($needsPackages) {
+        Wait-WorkshopComponent -Component appinstaller -Gui:$GuiMode -Message 'Microsoft App Installer (winget) is needed to install missing components. Install it from Microsoft, then return here. Setup checks automatically.' -Check { [bool](Get-Command winget -ErrorAction SilentlyContinue) }
+    }
     if ($TerminalBackend -eq 'docker' -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Invoke-Checked winget @('install', '--id', 'Docker.DockerDesktop', '--exact', '--accept-package-agreements', '--accept-source-agreements', '--override', 'install --quiet --backend=wsl-2')
+        Invoke-WorkshopComponentStep -Component docker -Gui:$GuiMode -Message 'Docker Desktop installation needs attention. Review the error, finish any component dialogs, then choose Retry this step.' -Action {
+            Invoke-Checked winget @('install', '--id', 'Docker.DockerDesktop', '--exact', '--accept-package-agreements', '--accept-source-agreements', '--override', 'install --quiet --backend=wsl-2')
+        }
     }
     if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
-        Invoke-Checked winget @('install', '--id', 'Tailscale.Tailscale', '--exact', '--accept-package-agreements', '--accept-source-agreements')
+        Invoke-WorkshopComponentStep -Component tailscale -Gui:$GuiMode -Message 'Tailscale installation needs attention. Review the error, finish its installer, then choose Retry this step.' -Action {
+            Invoke-Checked winget @('install', '--id', 'Tailscale.Tailscale', '--exact', '--accept-package-agreements', '--accept-source-agreements')
+        }
     }
     $dockerCheck = 'not required (local terminal)'
     if ($TerminalBackend -eq 'docker') {
@@ -212,36 +272,56 @@ try {
         if (Test-Path $dockerSettings) {
             $settings = Get-Content $dockerSettings -Raw | ConvertFrom-Json
             if ($settings.PSObject.Properties.Name -contains 'wslEngineEnabled' -and -not $settings.wslEngineEnabled) {
-                throw 'In Docker Desktop Settings > General, enable Use the WSL 2 based engine, Apply/restart, then rerun.'
+                if (-not $GuiMode) { throw 'In Docker Desktop Settings > General, enable Use the WSL 2 based engine, Apply/restart, then rerun.' }
+                Write-Host 'In Docker Desktop Settings > General, enable Use the WSL 2 based engine and Apply/restart. This window will stay open.'
             }
         }
         if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
             Start-Process (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe')
         }
-        $dockerReady = $false
-        for ($i = 0; $i -lt 60; $i++) {
-            & docker info *> $null
-            if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
-            Start-Sleep -Seconds 2
+        if ($GuiMode) {
+            Wait-WorkshopComponent -Component docker -Gui -Message 'Docker Desktop is starting or needs first-run approval. Complete its dialogs and use the WSL2 engine with Linux containers. Setup checks automatically and continues when the engine responds.' -Check {
+                try {
+                    $info = (& docker info --format '{{json .}}' 2>$null | Out-String) | ConvertFrom-Json
+                    if ($LASTEXITCODE -ne 0) { return $false }
+                    $context = (& docker context inspect --format '{{.Endpoints.docker.Host}}' 2>$null | Out-String).Trim()
+                    if ($LASTEXITCODE -ne 0) { return $false }
+                    Assert-WorkshopDockerEngine $info.OSType $info.OperatingSystem $info.KernelVersion $context
+                    return $true
+                } catch { return $false }
+            }
+        } else {
+            $dockerReady = $false
+            for ($i = 0; $i -lt 60; $i++) {
+                & docker info *> $null
+                if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
+                Start-Sleep -Seconds 2
+            }
+            if (-not $dockerReady) { throw 'Finish Docker Desktop first-run setup, enable its WSL 2 based engine and Linux containers, and rerun.' }
         }
-        if (-not $dockerReady) { throw 'Finish Docker Desktop first-run setup, enable its WSL 2 based engine and Linux containers, and rerun.' }
         if ($env:DOCKER_HOST -and $env:DOCKER_HOST -notlike 'npipe://*') { throw 'Unset remote DOCKER_HOST and select the local Docker Desktop context, then rerun.' }
         $engineInfo = (& docker info --format '{{json .}}' | Out-String) | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the Docker engine.' }
         $endpoint = (& docker context inspect --format '{{.Endpoints.docker.Host}}' | Out-String).Trim()
         if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the active Docker context.' }
         Assert-WorkshopDockerEngine $engineInfo.OSType $engineInfo.OperatingSystem $engineInfo.KernelVersion $endpoint
-        Invoke-Checked docker @('run', '--rm', 'hello-world')
+        Invoke-WorkshopComponentStep -Component docker -Gui:$GuiMode -Message 'Docker could not run its test container. Check the engine and internet/proxy settings, then choose Retry this step.' -Action { Invoke-Checked docker @('run', '--rm', 'hello-world') }
         $dockerCheck = 'hello-world passed'
     }
     Write-Host 'Checking Tailscale. Existing signed-in installations do not need another login prompt.'
-    & tailscale status *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host 'Complete Tailscale sign-in in your browser.'
-        Invoke-Checked tailscale @('up')
+    if ($GuiMode) {
+        if (-not (Get-WorkshopTailnetIp)) { Start-WorkshopTailscale }
+        Wait-WorkshopComponent -Component tailscale -Gui -Message 'Connect Tailscale on this computer and finish browser sign-in or device approval. Setup checks automatically and continues when this device is connected.' -Check { [bool](Get-WorkshopTailnetIp) }
+        $tailIp = Get-WorkshopTailnetIp
+    } else {
+        & tailscale status *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host 'Complete Tailscale sign-in in your browser.'
+            Invoke-Checked tailscale @('up')
+        }
+        $tailIp = (& tailscale ip -4 | Out-String).Trim()
     }
-    $tailIp = (& tailscale ip -4 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $tailIp -notmatch '^100\.\d+\.\d+\.\d+$') { throw 'No Tailscale IPv4 address. Complete sign-in, then rerun.' }
+    if ($tailIp -notmatch '^100\.\d+\.\d+\.\d+$') { throw 'No Tailscale IPv4 address. Complete sign-in, then rerun.' }
     Write-Host "Tailscale is connected: $tailIp"
     if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) {
         if ($UseExistingDesktop) { throw 'The original Desktop runtime is missing; finish its installer first.' }
@@ -342,9 +422,26 @@ try {
     # Run at current-user login with limited privileges, even though setup needs elevation.
     $escapedHermes = $hermes.Replace("'", "''")
     $backend = Join-Path $state 'backend.ps1'
-    Save-Utf8 $backend "Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue`r`n`$env:PATH = '$($env:PATH.Replace("'", "''"))'`r`n& '$escapedHermes' -p '$ProfileName' serve --isolated --host 127.0.0.1 --port $backendPort`r`nexit `$LASTEXITCODE`r`n"
+    $gatewayReceipt = Join-Path $state 'gateway-ready.json'
+    Remove-Item -LiteralPath $gatewayReceipt -Force -ErrorAction SilentlyContinue
+    $escapedReceipt = $gatewayReceipt.Replace("'", "''")
+    $backendCode = @"
+Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue
+`$env:PATH = '$($env:PATH.Replace("'", "''"))'
+`$gatewayJson = (& '$escapedHermes' -p '$ProfileName' gateway ensure --json --timeout 60 | Out-String)
+if (`$LASTEXITCODE -ne 0) { exit 1 }
+try {
+    `$gatewayState = `$gatewayJson | ConvertFrom-Json
+    if (`$gatewayState.state -ne 'ready' -or -not `$gatewayState.endpoint) { exit 1 }
+    [IO.File]::WriteAllText('$escapedReceipt', `$gatewayJson)
+} catch { exit 1 }
+& '$escapedHermes' -p '$ProfileName' serve --isolated --host 127.0.0.1 --port $backendPort
+exit `$LASTEXITCODE
+"@
+    Save-Utf8 $backend $backendCode
+    Write-Host 'Starting and verifying the Hermes gateway for the selected profile, then the authenticated backend.'
     $taskName = "HermesWorkshop-$ProfileName"
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$backend`""
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$backend`""
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
@@ -353,14 +450,20 @@ try {
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $taskPrincipal -Settings $taskSettings -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
     $backendReady = $false
-    for ($i = 0; $i -lt 30; $i++) {
+    for ($i = 0; $i -lt 90; $i++) {
         try {
             $status = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/status" -Headers @{ Host = "${tailIp}:$TailnetPort" } -TimeoutSec 3
             if ($status.auth_required -eq $true) { $backendReady = $true; break }
         } catch { }
         Start-Sleep -Seconds 2
     }
-    if (-not $backendReady) { throw "Backend/auth check failed. Inspect Scheduled Task $taskName and local port $backendPort. Tailscale forwarding was not enabled." }
+    if (-not $backendReady) { throw "Gateway/backend check failed. Inspect Scheduled Task $taskName and local port $backendPort. Tailscale forwarding was not enabled." }
+    $gatewayVerified = $false
+    if (Test-Path $gatewayReceipt) {
+        try { $receipt = Get-Content -LiteralPath $gatewayReceipt -Raw | ConvertFrom-Json; $gatewayVerified = ($receipt.state -eq 'ready' -and [bool]$receipt.endpoint) } catch { }
+    }
+    if (-not $gatewayVerified) { throw 'Gateway readiness was not confirmed. Tailscale forwarding was not enabled.' }
+    Write-Host 'Hermes gateway: running and ready (verified by gateway ensure).'
     Invoke-Checked tailscale @('serve', '--bg', "--tcp=$TailnetPort", "tcp://127.0.0.1:$backendPort")
     Invoke-Checked tailscale @('serve', 'status')
     Write-Host "Ready: http://${tailIp}:$TailnetPort (tailnet devices only; policy must permit TCP $TailnetPort)."
@@ -368,10 +471,10 @@ try {
     $desktopLauncher = Join-Path $state 'Open-Hermes-Desktop.ps1'
     Save-Utf8 $desktopLauncher "Remove-Item Env:HERMES_HOME -ErrorAction SilentlyContinue`r`nRemove-Item Env:HERMES_DESKTOP_REMOTE_URL -ErrorAction SilentlyContinue`r`n`$env:PATH = '$($env:PATH.Replace("'", "''"))'`r`n& '$escapedHermes' -p '$ProfileName' desktop`r`nexit `$LASTEXITCODE`r`n"
     Write-Host "Open Desktop using: $desktopLauncher. Select profile $ProfileName. Backend starts at user login."
-    Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"')
+    if (-not $GuiMode) { Start-Process powershell.exe -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $desktopLauncher + '"') }
     Write-Host "Before chatting, configure a model/provider in Desktop or with: hermes -p $ProfileName model"
     Write-Host 'Verify from another tailnet device; local setup cannot prove remote ACL access.'
-    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nTerminal backend: $TerminalBackend`r`nTerminal workspace: $terminalWorkingDirectory`r`nDocker: $dockerCheck`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: $desktopCheck`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP ${TailnetPort}: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:$TailnetPort`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
+    $readiness = "INSTALLATION CHECKS COMPLETE (model/provider setup is separate)`r`nProfile: $ProfileName`r`nTerminal backend: $TerminalBackend`r`nTerminal workspace: $terminalWorkingDirectory`r`nDocker: $dockerCheck`r`nTailscale: connected ($tailIp)`r`nHermes Desktop: $desktopCheck`r`nGateway: running and ready (gateway ensure verified)`r`nLocal backend: authenticated status check passed on 127.0.0.1:$backendPort`r`nTailscale TCP ${TailnetPort}: forwarding configured to 127.0.0.1:$backendPort`r`nTailnet URL: http://${tailIp}:$TailnetPort`r`nDesktop launcher: $desktopLauncher`r`nRemote-device access and an authenticated Desktop conversation still need verification.`r`n"
     Save-Utf8 (Join-Path $state 'installation-ready.txt') $readiness
     Write-Host $readiness
     Start-WorkshopProfileSetup -HermesCommand $hermes -SelectedProfile $ProfileName -StateDirectory $state -PublicUrl "http://${tailIp}:$TailnetPort" -Skip:$SkipProfileSetup -TerminalBackend $TerminalBackend -WorkingDirectory $terminalWorkingDirectory

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validateSettings, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment } = require('../core.cjs');
+const { validateSettings, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, componentEvent } = require('../core.cjs');
 const sample = () => ({ profile: 'Hamburger_01', username: 'Ben', password: 'A long private password!', confirm: 'A long private password!', accepted: true, reset: false });
 
 test('preset validation prevents path/terminal input injection and requires review', () => {
@@ -17,11 +17,21 @@ test('secret values never appear in process arguments or inherited environment',
     assert.ok(!JSON.stringify(installEnvironment(s, {})).includes(s.password));
     if (platform === 'win32') {
       assert.ok(command.args.includes('-SkipProfileSetup'));
+      assert.ok(command.args.includes('-GuiMode'));
       assert.ok(command.args.includes(s.profile));
       assert.ok(!command.args.includes('-ResetDashboardAuth'));
       assert.ok(installCommand({ ...s, reset: true }, '/trusted/bundle', platform).args.includes('-ResetDashboardAuth'));
     }
   }
+});
+test('only known component events can request a guided wait; install retries stay manual', () => {
+  assert.deepEqual(componentEvent('HERMES_SETUP_WAIT|docker|auto|Open Docker'), { type: 'component-wait', component: 'docker', automatic: true, message: 'Open Docker' });
+  assert.equal(componentEvent('HERMES_SETUP_WAIT|tailscale|manual|Retry').automatic, false);
+  assert.equal(componentEvent('HERMES_SETUP_READY|docker').type, 'component-ready');
+  assert.equal(componentEvent('HERMES_SETUP_WAIT|buildtools|auto|Install Apple tools').component, 'buildtools');
+  assert.equal(componentEvent('HERMES_SETUP_RESTART|Restart Windows').type, 'restart-required');
+  for (const line of ['HERMES_SETUP_WAIT|arbitrary.exe|auto|run', 'prefix HERMES_SETUP_READY|docker', 'HERMES_SETUP_WAIT|docker|anything|run', 'HERMES_SETUP_WAIT|docker|auto|one\ntwo']) assert.equal(componentEvent(line), null);
+  assert.equal(installEnvironment(validateSettings(sample()), {}).HERMES_GUI_MODE, '1');
 });
 test('terminal choice reaches both OS installers and rejects unknown backends', () => {
   assert.equal(validateSettings(sample()).terminalBackend, 'docker');

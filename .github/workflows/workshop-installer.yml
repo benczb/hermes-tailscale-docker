@@ -56,6 +56,15 @@ jobs:
       - name: Test Windows dashboard credentials
         shell: pwsh
         run: ./scripts/test-windows-login.ps1
+      - name: Test guided component recovery and verified gateway startup
+        shell: pwsh
+        run: ./scripts/test-component-setup.ps1
+      - name: Test component recovery in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-component-setup.ps1
+      - name: Test Bash component recovery
+        run: python scripts/test-component-setup.py
       - name: Test dashboard credentials in Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell

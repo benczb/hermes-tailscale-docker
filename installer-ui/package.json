@@ -1,6 +1,6 @@
 {
   "name": "hermes-setup",
-  "version": "0.2.0",
+  "version": "0.3.0-preview.1",
   "private": true,
   "description": "Guided local Hermes, Docker sandbox and Tailscale installation",
   "author": "Ben",
@@ -56,7 +56,7 @@
     },
     "win": {
       "target": [
-        "portable"
+        "nsis"
       ],
       "requestedExecutionLevel": "requireAdministrator"
     },
@@ -65,6 +65,16 @@
         "AppImage"
       ],
       "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Hermes-Setup-Companion-${version}-windows-${arch}.exe"
     }
   }
 }

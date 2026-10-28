@@ -9,7 +9,7 @@ const { pathToFileURL } = require('node:url');
 const core = require('./core.cjs');
 const { officialInstaller, officialInstallation } = require('./official.cjs');
 const exec = promisify(execFile);
-let window, task, transcript, prompts, activeProfile, dashboardUrl, canceled = false, awaitingInput = false, starting = false;
+let window, task, transcript, prompts, activeProfile, dashboardUrl, componentWaiting = null, restartMessage = '', canceled = false, awaitingInput = false, starting = false;
 const root = () => app.isPackaged ? path.join(process.resourcesPath, 'installer') : path.resolve(__dirname, '../scripts');
 const page = pathToFileURL(path.join(__dirname, 'ui/index.html')).href;
 const send = data => { if (window && !window.isDestroyed()) window.webContents.send('setup:event', data); };
@@ -92,7 +92,17 @@ handler('setup:start', async input => {
   activeProfile = settings.profile;
   dashboardUrl = null;
   canceled = false;
-  transcript = new core.PrivateTranscript([settings.password], line => send({ type: 'line', line, stage: core.stageFromLine(line) }));
+  componentWaiting = null; restartMessage = '';
+  transcript = new core.PrivateTranscript([settings.password], line => {
+    const update = core.componentEvent(line);
+    if (update) {
+      if (update.type === 'component-wait') { componentWaiting = update; awaitingInput = false; }
+      if (update.type === 'component-ready') componentWaiting = null;
+      if (update.type === 'restart-required') restartMessage = update.message;
+      send(update);
+    }
+    send({ type: 'line', line, stage: core.stageFromLine(line) });
+  });
   const command = core.installCommand(settings, root());
   const pty = require('node-pty');
   task = pty.spawn(command.file, command.args, {
@@ -115,12 +125,13 @@ handler('setup:start', async input => {
   });
   task.onExit(async ({ exitCode }) => {
     transcript.finish();
-    prompts.clear(); prompts = null; task = null;
+    prompts.clear(); prompts = null; task = null; componentWaiting = null;
     if (canceled) { send({ type: 'finished', ok: false, canceled: true, message: 'Installation stopped. Completed components are kept; reopen setup to resume.' }); return; }
-    if (exitCode !== 0) { send({ type: 'finished', ok: false, message: 'Setup stopped. Review the last messages below. If Windows requires a restart, restart it and reopen this wizard; re-enter your password to resume.' }); return; }
+    if (exitCode !== 0) { send({ type: 'finished', ok: false, restartRequired: Boolean(restartMessage), message: restartMessage || 'Setup stopped. Review the last messages below. Completed components are kept; reopen this wizard and re-enter your password to resume.' }); return; }
     try {
       const report = await fs.readFile(core.readinessPath(activeProfile), 'utf8');
       if (!report.includes('INSTALLATION CHECKS COMPLETE')) throw new Error('Missing completion report.');
+      if (!report.includes('Gateway: running and ready (gateway ensure verified)')) throw new Error('Gateway readiness has not been confirmed.');
       const url = report.match(/Tailnet URL: (http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})\s*(?:\r?\n|$)/)?.[1];
       if (url && Number(new URL(url).port) !== settings.accessPort) throw new Error('The completion report uses another access port.');
       dashboardUrl = url || null;
@@ -135,6 +146,31 @@ handler('setup:respond', input => {
   // Treat every manual response as sensitive, even if the prompt is not a password.
   transcript.hide(input); prompts.tail = ''; awaitingInput = false; task.write(input + '\r');
   send({ type: 'input-cleared' });
+});
+handler('setup:component', async action => {
+  if (!task || !componentWaiting || !['open', 'check'].includes(action)) throw new Error('No component is waiting for this action.');
+  const component = componentWaiting.component;
+  if (action === 'check') {
+    if (componentWaiting.checking) return;
+    componentWaiting = { ...componentWaiting, checking: true }; task.write('\r'); send({ type: 'component-checking' }); return;
+  }
+  if (process.platform === 'darwin') {
+    if (component === 'brew') return shell.openExternal('https://docs.brew.sh/Installation');
+    if (component === 'buildtools') { await probe('/usr/bin/xcode-select', ['--install']); return; }
+    if (!['docker', 'tailscale'].includes(component)) throw new Error('This component action is not available on macOS.');
+    const appName = component === 'docker' ? 'Docker' : 'Tailscale';
+    const result = await probe('/usr/bin/open', ['-a', appName]);
+    if (!result.ok) return shell.openExternal(component === 'docker' ? 'https://www.docker.com/products/docker-desktop/' : 'https://tailscale.com/download/mac');
+    return;
+  }
+  if (process.platform !== 'win32') throw new Error('These component actions are for native Windows.');
+  if (component === 'appinstaller') return shell.openExternal('https://apps.microsoft.com/detail/9nblggh4nns1');
+  if (component === 'wsl') return shell.openExternal('https://learn.microsoft.com/windows/wsl/troubleshooting');
+  const file = path.join(process.env.ProgramFiles || 'C:\\Program Files', component === 'docker' ? 'Docker/Docker/Docker Desktop.exe' : 'Tailscale/tailscale-ipn.exe');
+  try { await fs.access(file); }
+  catch { return shell.openExternal(component === 'docker' ? 'https://www.docker.com/products/docker-desktop/' : 'https://tailscale.com/download/windows'); }
+  const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: true, env: hostEnvironment() });
+  return new Promise((resolve, reject) => { child.once('error', () => reject(new Error('The component app could not open. Use its Start menu shortcut, then return here.'))); child.once('spawn', () => { child.unref(); resolve(); }); });
 });
 handler('setup:cancel', () => { if (starting || task) canceled = true; if (task) task.kill(); });
 handler('setup:original-installer', async () => {

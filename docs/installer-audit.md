@@ -113,3 +113,18 @@ Local terminal mode creates a `workspace` directory inside the selected Hermes p
 GUI version 0.2 defaults to the original Nous Research bootstrap installer on Windows and Apple Silicon. The companion checks the original installer's standard helper/completion marker, built Desktop and native CLI before running in reuse-only mode. That mode refuses a missing runtime and does not call the upstream native installer or Desktop build command. Intel/Linux require an explicit source-build alternative; a detected bundled/Store app blocks this bootstrap integration instead of creating another runtime.
 
 The access port is validated from 1024 to 65535, pre-filled as 9119, and labeled Default: 9119. It is passed to both platform scripts and used consistently for the Tailscale TCP rule, public origin, auth Host header, final wizard restoration and completion URL. A saved local backend port may differ and is reported separately. Docker remains only the terminal backend; the native agent and Desktop are never deployed as a Docker service.
+
+## Graphical component recovery and gateway startup
+
+Graphical installers initiate missing Docker/Tailscale installation (Windows winget;
+macOS Homebrew casks), open their host apps and keep the current session alive
+through first-run and connection checks. Automatic five-second checks apply to
+readiness only. Failed installs require an explicit retry in the window. Account
+sign-in, device/VPN approvals and required Windows restarts remain interactive.
+
+Before starting the authenticated backend, its user-login launcher runs the
+selected profile's `gateway ensure --json --timeout 60` and requires `state: ready`.
+On Windows this runs in the limited-user task, avoiding an elevated gateway.
+A fresh credential-free gateway-ready.json and the auth-gate check are required
+before Tailscale forwarding/completion. Login restarts ensure the gateway again;
+provider inference and peer-device access are separate checks.

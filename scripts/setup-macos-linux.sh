@@ -5,6 +5,35 @@ set -Eeuo pipefail
 umask 077
 trap 'echo "Setup stopped at line $LINENO. Fix the error above and rerun; existing profiles are preserved." >&2' ERR
 fail() { echo "ERROR: $*" >&2; exit 1; }
+gui_mode=${HERMES_GUI_MODE:-0}
+case "$gui_mode" in 0|1) ;; *) fail 'HERMES_GUI_MODE must be 0 or 1.' ;; esac
+component_step() {
+  local component=$1 message=$2 response
+  shift 2
+  if [ "$gui_mode" != 1 ]; then "$@"; return; fi
+  until "$@"; do
+    printf '\nHERMES_SETUP_WAIT|%s|manual|%s\n' "$component" "$message"
+    read -r response || fail 'Setup input closed. Reopen the installer to resume.'
+  done
+  printf '\nHERMES_SETUP_READY|%s\n' "$component"
+}
+component_wait() {
+  local component=$1 message=$2 response
+  shift 2
+  while ! "$@"; do
+    [ "$gui_mode" = 1 ] || fail "$message"
+    printf '\nHERMES_SETUP_WAIT|%s|auto|%s\n' "$component" "$message"
+    read -r response || fail 'Setup input closed. Reopen the installer to resume.'
+  done
+  if [ "$gui_mode" = 1 ]; then printf '\nHERMES_SETUP_READY|%s\n' "$component"; fi
+}
+docker_responds() { docker info >/dev/null 2>&1 && [ "$(docker info --format '{{.OSType}}')" = linux ]; }
+mac_tailscale_connected() {
+  "$tailscale_bin" status --json 2>/dev/null | grep -q '"BackendState"[[:space:]]*:[[:space:]]*"Running"' || return 1
+  local ip
+  ip=$("$tailscale_bin" ip -4 2>/dev/null) || return 1
+  [[ "$ip" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
 [ "$(id -u)" -ne 0 ] || fail 'Run as your normal desktop user, not sudo/root.'
 case "$(uname -s)" in
   Darwin) platform=macos ;;
@@ -58,28 +87,33 @@ if [ "$platform" = macos ]; then
   if [ "$need_brew" = 1 ]; then
     if ! command -v brew >/dev/null; then
       curl --fail --show-error --silent --location https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$state/homebrew-install.sh"
-      /bin/bash "$state/homebrew-install.sh"
+      component_step brew 'Homebrew setup needs attention. Complete its prompts or review the error, then choose Retry this step.' /bin/bash "$state/homebrew-install.sh"
       if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)";
       elif [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
     fi
-    command -v brew >/dev/null || fail 'Finish Homebrew setup, then rerun.'
+    component_wait brew 'Finish Homebrew setup. Setup checks automatically. Complete any Apple command-line tools dialog first.' command -v brew
   fi
-  if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then brew install --cask docker; fi
+  if [ "$terminal_backend" = docker ] && ! command -v docker >/dev/null; then component_step docker 'Docker installation needs attention. Review the activity details and complete OS dialogs, then choose Retry this step.' brew install --cask docker; fi
   if ! command -v tailscale >/dev/null && [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
-    brew install --cask tailscale
+    component_step tailscale 'Tailscale installation needs attention. Review the activity details and complete OS dialogs, then choose Retry this step.' brew install --cask tailscale
   fi
   if [ "$use_existing_desktop" != 1 ]; then
     command -v git >/dev/null || brew install git
-    xcode-select -p >/dev/null 2>&1 || fail 'Install Xcode Command Line Tools (xcode-select --install), finish the dialog, then rerun.'
+    if [ "$gui_mode" = 1 ]; then
+      if ! xcode-select -p >/dev/null 2>&1; then xcode-select --install || true; fi
+      component_wait buildtools 'Finish the Apple Command Line Tools installation. Setup checks automatically and resumes when ready.' xcode-select -p
+    else
+      xcode-select -p >/dev/null 2>&1 || fail 'Install Xcode Command Line Tools (xcode-select --install), finish the dialog, then rerun.'
+    fi
     # Native Python dependencies may need a source build on Intel/older macOS.
     # Apple does not ship OpenSSL headers; expose Homebrew's keg-only OpenSSL.
-    brew install openssl@3 pkg-config
+    component_step brew 'OpenSSL/build dependencies could not be installed. Review the activity details, then choose Retry this step.' brew install openssl@3 pkg-config
     export OPENSSL_DIR="$(brew --prefix openssl@3)"
     [ -n "$OPENSSL_DIR" ] || fail 'Homebrew OpenSSL prefix is empty; repair openssl@3 and rerun.'
     export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
   fi
-  if [ "$terminal_backend" = docker ]; then open -a Docker; fi
-  open -a Tailscale
+  if [ "$terminal_backend" = docker ]; then open -a Docker || { [ "$gui_mode" = 1 ] || fail 'Open Docker Desktop, then rerun.'; }; fi
+  open -a Tailscale || { [ "$gui_mode" = 1 ] || fail 'Open Tailscale, then rerun.'; }
 else
   if command -v apt-get >/dev/null; then
     sudo apt-get update
@@ -105,15 +139,19 @@ docker_check='not required (local terminal)'
 if [ "$terminal_backend" = docker ]; then
   command -v docker >/dev/null || fail 'Missing prerequisite: docker'
   # Do not change Docker group membership or invoke the native agent as root.
-  ready=0
-  for ((attempt=0; attempt<30; attempt++)); do
-    if docker info >/dev/null 2>&1; then ready=1; break; fi
-    sleep 2
-  done
-  [ "$ready" = 1 ] || fail 'Docker is unavailable. Start it and grant your user access to its socket, then rerun.'
+  if [ "$gui_mode" = 1 ]; then
+    component_wait docker 'Docker is starting or needs first-run approval. Complete its dialogs and select Linux containers. Setup checks automatically and continues when ready.' docker_responds
+  else
+    ready=0
+    for ((attempt=0; attempt<30; attempt++)); do
+      if docker info >/dev/null 2>&1; then ready=1; break; fi
+      sleep 2
+    done
+    [ "$ready" = 1 ] || fail 'Docker is unavailable. Start it and grant your user access to its socket, then rerun.'
+  fi
   [ "$(docker info --format '{{.OSType}}')" = linux ] || fail 'Select Linux containers in Docker.'
   # Prove the terminal sandbox can actually start, not merely that its CLI exists.
-  docker run --rm hello-world
+  component_step docker 'Docker could not run its test container. Check Docker and internet/proxy settings, then choose Retry this step.' docker run --rm hello-world
   docker_check='hello-world passed'
 else
   echo 'Local terminal selected. Docker is not installed, started or checked.'
@@ -122,7 +160,9 @@ fi
 tailscale_bin=$(command -v tailscale || true)
 if [ -z "$tailscale_bin" ] && [ "$platform" = macos ]; then tailscale_bin=/Applications/Tailscale.app/Contents/MacOS/Tailscale; fi
 [ -x "$tailscale_bin" ] || fail 'Tailscale CLI not found. Finish its installation, then rerun.'
-if ! "$tailscale_bin" status >/dev/null 2>&1; then
+if [ "$gui_mode" = 1 ] && [ "$platform" = macos ]; then
+  component_wait tailscale 'Connect Tailscale, finish browser sign-in and approve macOS VPN/system-extension dialogs. Setup checks automatically and continues when connected.' mac_tailscale_connected
+elif ! "$tailscale_bin" status >/dev/null 2>&1; then
   echo 'Complete Tailscale sign-in and approve any macOS VPN/system-extension prompt.'
   sudo "$tailscale_bin" up
 fi
@@ -309,7 +349,15 @@ else
 fi
 
 # Save a launcher instead of relying on the lifetime of the installer's terminal.
-printf '#!/usr/bin/env bash\nunset HERMES_HOME\nexport PATH=%q\nexec %q -p %q serve --isolated --host 127.0.0.1 --port %q\n' "$PATH" "$hermes_bin" "$profile" "$backend_port" > "$state/backend.sh"
+gateway_receipt="$state/gateway-ready.json"
+rm -f "$gateway_receipt"
+{
+  printf '#!/usr/bin/env bash\nset -e\nunset HERMES_HOME\nexport PATH=%q\n' "$PATH"
+  printf '%q -p %q gateway ensure --json --timeout 60 > %q\n' "$hermes_bin" "$profile" "$gateway_receipt"
+  printf 'grep -Eq '\''"state"[[:space:]]*:[[:space:]]*"ready"'\'' %q || exit 1\n' "$gateway_receipt"
+  printf 'exec %q -p %q serve --isolated --host 127.0.0.1 --port %q\n' "$hermes_bin" "$profile" "$backend_port"
+} > "$state/backend.sh"
+echo 'Starting and verifying the Hermes gateway for the selected profile, then the authenticated backend.'
 chmod 700 "$state/backend.sh"
 if [ "$platform" = macos ]; then
   xml_escape() { printf '%s' "$1" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'; }
@@ -353,12 +401,14 @@ UNIT
 fi
 # Check the selected origin and auth gate, not just whether something holds port 9119.
 ready=0
-for ((attempt=0; attempt<30; attempt++)); do
+for ((attempt=0; attempt<90; attempt++)); do
   status=$(curl --silent --show-error --fail --max-time 3 -H "Host: $tail_ip:$tailnet_port" "http://127.0.0.1:$backend_port/api/status" 2>/dev/null || true)
   if printf '%s' "$status" | grep -Eq '"auth_required"[[:space:]]*:[[:space:]]*true'; then ready=1; break; fi
   sleep 2
 done
 [ "$ready" = 1 ] || fail "Backend/auth check failed. Check $state/backend*.log or journalctl --user -u hermes-workshop-$profile. Local port $backend_port may be occupied."
+[ -f "$gateway_receipt" ] && grep -Eq '"state"[[:space:]]*:[[:space:]]*"ready"' "$gateway_receipt" || fail 'Gateway readiness was not confirmed. Tailscale forwarding was not enabled.'
+echo 'Hermes gateway: running and ready (verified by gateway ensure).'
 sudo "$tailscale_bin" serve --bg --tcp="$tailnet_port" "tcp://127.0.0.1:$backend_port"
 "$tailscale_bin" serve status
 echo "Ready: http://$tail_ip:$tailnet_port (tailnet devices only; tailnet policy must permit TCP $tailnet_port)."
@@ -375,6 +425,7 @@ Terminal workspace: $terminal_cwd
 Docker: $docker_check
 Tailscale: connected ($tail_ip)
 Hermes Desktop: $desktop_check
+Gateway: running and ready (gateway ensure verified)
 Local backend: authenticated status check passed on 127.0.0.1:$backend_port
 Tailscale TCP $tailnet_port: forwarding configured to 127.0.0.1:$backend_port
 Tailnet URL: http://$tail_ip:$tailnet_port
