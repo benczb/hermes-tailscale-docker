@@ -95,7 +95,7 @@ class Installers(unittest.TestCase):
                     if failure == 'official-reuse':
                         (bin_dir / 'brew').unlink()
                     log = fixture / 'calls.jsonl'
-                    env = dict(os.environ, HOME=str(user_home), PATH=str(bin_dir) + os.pathsep + os.environ['PATH'], MOCK_LOG=str(log), MOCK_OS=platform, MOCK_FAIL='' if failure in ('custom-home', 'fresh-install') else failure, MOCK_HERMES_SOURCE=str(hermes_source), MOCK_BIN=str(bin_dir))
+                    env = dict(os.environ, HOME=str(user_home), PATH=str(bin_dir) + os.pathsep + os.defpath, MOCK_LOG=str(log), MOCK_OS=platform, MOCK_FAIL='' if failure in ('custom-home', 'fresh-install') else failure, MOCK_HERMES_SOURCE=str(hermes_source), MOCK_BIN=str(bin_dir))
                     custom_home = fixture / 'existing custom hermes'
                     custom_home.mkdir()
                     sentinel = custom_home / 'keep.txt'
