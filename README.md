@@ -4,7 +4,7 @@
 
 ### Installation walkthrough
 
-https://github.com/user-attachments/assets/4c59c5fa-f337-434c-95b4-a927767ca598
+https://github.com/user-attachments/assets/e21cbcae-42f2-488f-95ae-b2df93478279
 
 A guided installer for **Hermes Desktop, optional Docker terminal tools and
 Tailscale** on your computer. Choose your profile name, dashboard login and access
