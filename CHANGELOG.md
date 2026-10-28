@@ -5,6 +5,13 @@ a complete reconstruction of older commits. Graphical releases are prereleases.
 
 ## Unreleased
 
+## 0.3.0-preview.2
+
+- Reject Hermes-reserved profile names (`hermes`, `default`, `test`, `tmp`, `root`,
+  `sudo`) before installation in the graphical form, backend validation and both
+  platform scripts. Reserved-name checks are case-insensitive; `test-agent` remains valid.
+- Ignore an invalid saved profile suggestion and keep installed components for retry.
+
 ## 0.3.0-preview.1
 
 ### Graphical installation update

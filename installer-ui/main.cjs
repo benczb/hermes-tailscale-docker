@@ -52,7 +52,7 @@ async function inspect(requestedMode) {
   const official = await officialInstallation({ cliAvailable: hermes.ok, bundledAppDetected: bundled?.ok === true });
   return {
     platform, architecture: os.arch(), system: `${os.type()} ${os.release()} · ${os.arch()}`, supported,
-    defaults: { profile: saved.profile || '', username: saved.username || '', reset: false, terminalBackend, desktopInstall: saved.desktopInstall === 'source' ? 'source' : 'official', accessPort: Number.isInteger(saved.accessPort) && saved.accessPort >= 1024 && saved.accessPort <= 65535 ? saved.accessPort : 9119 },
+    defaults: { profile: core.validProfileName(saved.profile) ? saved.profile : '', username: saved.username || '', reset: false, terminalBackend, desktopInstall: saved.desktopInstall === 'source' ? 'source' : 'official', accessPort: Number.isInteger(saved.accessPort) && saved.accessPort >= 1024 && saved.accessPort <= 65535 ? saved.accessPort : 9119 },
     official,
     checks: [
       { title: 'This computer', status: supported ? 'ready' : 'blocked', detail: supported ? 'Native installation on this computer.' : 'Use a native 64-bit Windows, macOS or Linux desktop; WSL is not the installer host.' },

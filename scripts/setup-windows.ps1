@@ -116,13 +116,13 @@ function Start-WorkshopTailscale {
 function Test-WorkshopProfileName {
     param([string]$Name)
     if ($Name -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$') { return $false }
-    return $Name.ToLowerInvariant() -notmatch '^(default|con|prn|aux|nul|com[1-9]|lpt[1-9])$'
+    return $Name.ToLowerInvariant() -notmatch '^(hermes|default|test|tmp|root|sudo|con|prn|aux|nul|com[1-9]|lpt[1-9])$'
 }
 function Select-WorkshopProfileName {
     param([string]$RequestedName, [string]$SelectionFile)
     $selected = $RequestedName.Trim()
     if ($selected) {
-        if (-not (Test-WorkshopProfileName $selected)) { throw 'Use 1–64 letters/digits, _ or -, starting with a letter/digit; default and reserved device names are not allowed.' }
+        if (-not (Test-WorkshopProfileName $selected)) { throw 'Choose a name such as ben-personal or starter-agent. Hermes reserves hermes, default, test, tmp, root and sudo; Windows device names are also reserved. Use 1–64 letters/digits, _ or -, starting with a letter/digit.' }
     } else {
         $defaultName = 'starter-agent'
         if (Test-Path $SelectionFile) {
@@ -133,7 +133,7 @@ function Select-WorkshopProfileName {
             $selected = ([string](Read-Host "Hermes profile name [$defaultName]")).Trim()
             if (-not $selected) { $selected = $defaultName }
             $valid = Test-WorkshopProfileName $selected
-            if (-not $valid) { Write-Host 'Use 1–64 letters/digits, _ or -, starting with a letter/digit. Do not use default or Windows device names (CON, NUL, etc.).' }
+            if (-not $valid) { Write-Host 'Use a name such as ben-personal or starter-agent. Do not use hermes, default, test, tmp, root, sudo or Windows device names (CON, NUL, etc.).' }
         } while (-not $valid)
     }
     Save-Utf8 $SelectionFile $selected
@@ -198,7 +198,7 @@ try {
     $TerminalBackend = $TerminalBackend.ToLowerInvariant()
     if ($env:OS -ne 'Windows_NT') { throw 'Run this in native Windows PowerShell.' }
     $ProfileName = $ProfileName.Trim()
-    if ($ProfileName -and -not (Test-WorkshopProfileName $ProfileName)) { throw 'Invalid profile name. Use 1–64 letters/digits, _ or -, starting with a letter/digit; no default or device names.' }
+    if ($ProfileName -and -not (Test-WorkshopProfileName $ProfileName)) { throw 'Invalid profile name. Choose a name such as ben-personal or starter-agent; hermes, default, test, tmp, root, sudo and Windows device names are reserved.' }
     # Scope the workshop to the native layout without changing saved User/Machine settings.
     # Inherited HERMES_HOME often belongs to an existing profile or another installation.
     if ($env:HERMES_HOME) {

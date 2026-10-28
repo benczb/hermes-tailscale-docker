@@ -2,7 +2,11 @@
 const os = require('node:os');
 const path = require('node:path');
 
-const RESERVED = /^(default|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+// Hermes v0.22.5 hermes_cli/profiles.py _RESERVED_NAMES, plus Windows devices.
+const RESERVED = /^(hermes|default|test|tmp|root|sudo|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+function validProfileName(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(value) && !RESERVED.test(value);
+}
 function validateSettings(input) {
   if (!input || typeof input !== 'object') throw new Error('Enter your setup settings.');
   const rawProfile = String(input.profile || '');
@@ -19,8 +23,8 @@ function validateSettings(input) {
   if (!/^\d{1,5}$/.test(String(rawPort))) throw new Error('Enter a whole-number TCP port. Default: 9119.');
   const accessPort = Number(rawPort);
   if (!Number.isInteger(accessPort) || accessPort < 1024 || accessPort > 65535) throw new Error('Choose a TCP port from 1024 to 65535. Default: 9119.');
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(profile) || RESERVED.test(profile)) {
-    throw new Error('Profile name: use 1–64 letters, digits, underscores or hyphens, starting with a letter or digit. Default and device names are reserved.');
+  if (!validProfileName(profile)) {
+    throw new Error('Choose another profile name, such as ben-personal or starter-agent. Hermes reserves hermes, default, test, tmp, root and sudo; Windows device names are also reserved. Use 1–64 letters, digits, underscores or hyphens, starting with a letter or digit.');
   }
   if (!username || username.length > 128 || /[\x00-\x1f\x7f]/.test(username)) throw new Error('Enter a dashboard username without control characters.');
   if (password.length < 12 || password.length > 256 || /[\x00-\x1f\x7f]/.test(password)) throw new Error('Use a password of 12–256 characters without line breaks or control characters.');
@@ -106,4 +110,4 @@ function componentEvent(line) {
   if (restart) return { type: 'restart-required', message: restart[1] };
   return null;
 }
-module.exports = { validateSettings, stripTerminal, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, readinessPath, stageFromLine, componentEvent };
+module.exports = { validateSettings, validProfileName, stripTerminal, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, readinessPath, stageFromLine, componentEvent };

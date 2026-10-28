@@ -97,6 +97,8 @@ jobs:
 
           The companion initiates missing Docker/Tailscale installation, opens their apps, and continues in the same window through first-run and connection checks. Failed component installs have an explicit in-window retry. User sign-in, OS approvals and required reboots remain interactive. Local terminal mode skips Docker/WSL setup.
 
+          Profile names reserved by Hermes, including test, tmp, root, sudo, hermes and default, are rejected before installation. Choose a name such as ben-personal, starter-agent or test-agent. Existing components/profiles are reused.
+
           Hermes Desktop and its agent stay native; only terminal tools optionally run in Docker. The gateway is started through Hermes gateway ensure and must report ready before completion.
 
           The original Hermes Desktop installer is used on supported Windows/Apple Silicon systems. Intel Mac and Linux require the explicit source alternative. Intel Desktop builds remain best effort. Bundled/Store editions still require explicit integration.

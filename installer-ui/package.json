@@ -1,6 +1,6 @@
 {
   "name": "hermes-setup",
-  "version": "0.3.0-preview.1",
+  "version": "0.3.0-preview.2",
   "private": true,
   "description": "Guided local Hermes, Docker sandbox and Tailscale installation",
   "author": "Ben",

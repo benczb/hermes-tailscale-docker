@@ -54,6 +54,13 @@ same setup session and settings. Cancelling keeps already installed components.
 The companion checks the gateway and authenticated backend; a real model response
 and access from another authorized tailnet device still need verification.
 
+If an older preview reports **Profile name 'test' is reserved**, reopen setup and
+choose a name such as `test-agent`, `ben-personal` or `starter-agent`. Hermes reserves
+`hermes`, `default`, `test`, `tmp`, `root` and `sudo`; Windows device names are also
+unavailable. This restriction is on the profile name, not your dashboard username.
+Docker/Tailscale and existing profiles are reused. The updated form rejects these
+names before starting installation.
+
 ## Preview limits
 
 Windows packages are unsigned, and macOS packages use an ad-hoc signature without

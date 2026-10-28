@@ -45,7 +45,7 @@
           <div class="field-pair">
             <div><label for="profile">Profile name</label>
               <input id="profile" name="profile" required maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}" autocomplete="off" placeholder="e.g. hamburger" aria-describedby="profile-help">
-              <p id="profile-help" class="help">Choose your own name. Existing profiles are preserved.</p>
+              <p id="profile-help" class="help">Choose your own name. Names such as test, tmp, root, sudo, hermes and default are reserved. Existing profiles are preserved.</p>
             </div>
             <div><label for="access-port">Tailscale TCP port</label>
               <input id="access-port" name="access-port" type="number" value="9119" min="1024" max="65535" step="1" required aria-describedby="port-help">

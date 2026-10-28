@@ -48,7 +48,7 @@ case "$(uname -m)" in arm64|aarch64|x86_64) ;; *) fail 'Requires a 64-bit ARM or
 valid_profile_name() {
   [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$ ]] || return 1
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
-    default|con|prn|aux|nul|com[1-9]|lpt[1-9]) return 1 ;;
+    hermes|default|test|tmp|root|sudo|con|prn|aux|nul|com[1-9]|lpt[1-9]) return 1 ;;
   esac
   return 0
 }
@@ -62,7 +62,7 @@ terminal_backend=${HERMES_TERMINAL_BACKEND:-docker}
 case "$terminal_backend" in docker|local) ;; *) fail 'HERMES_TERMINAL_BACKEND must be docker or local.' ;; esac
 profile=${HERMES_PROFILE_NAME:-}
 if [ -n "$profile" ]; then
-  valid_profile_name "$profile" || fail 'Use 1–64 letters/digits, _ or -, starting with a letter/digit; default and reserved device names are not allowed.'
+  valid_profile_name "$profile" || fail 'Choose a name such as ben-personal or starter-agent. Hermes reserves hermes, default, test, tmp, root and sudo; Windows device names are also reserved. Use 1–64 letters/digits, _ or -, starting with a letter/digit.'
 fi
 # Optional: a trusted, separate profile distribution Git repository or local directory.
 source_profile=${HERMES_PROFILE_SOURCE:-}
@@ -188,7 +188,7 @@ if [ -z "$profile" ]; then
     read -r -p "Hermes profile name [$default_profile]: " chosen_profile || fail 'Profile name input cancelled.'
     chosen_profile=${chosen_profile:-$default_profile}
     if valid_profile_name "$chosen_profile"; then profile=$chosen_profile; break; fi
-    echo 'Use 1–64 letters/digits, _ or -, starting with a letter/digit. Do not use default or Windows device names (CON, NUL, etc.).'
+    echo 'Use a name such as ben-personal or starter-agent. Do not use hermes, default, test, tmp, root, sudo or Windows device names (CON, NUL, etc.).'
   done
 fi
 printf '%s\n' "$profile" > "$selection_file"

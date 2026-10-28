@@ -26,7 +26,7 @@ function settings() { return { accessPort: Number($('access-port').value), deskt
 function valid() {
   if (!$('settings-form').reportValidity()) return false;
   if (inspection.official.blocked || inspection.official.inProgress || (desktopInstall() === 'official' && !inspection.official.supported)) { error(inspection.official.message); return false; }
-  if (/^(default|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test($('profile').value.trim())) { error('Choose another profile name. Default and device names are reserved.'); return false; }
+  if (/^(hermes|default|test|tmp|root|sudo|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test($('profile').value.trim())) { error('Choose another profile name, such as ben-personal or starter-agent. Hermes reserves hermes, default, test, tmp, root and sudo; Windows device names are also reserved.'); $('profile').focus(); return false; }
   if ($('password').value !== $('confirm').value) { error('The passwords do not match.'); $('confirm').focus(); return false; }
   return true;
 }

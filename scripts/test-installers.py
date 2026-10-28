@@ -70,6 +70,16 @@ elif name == 'hermes':
 '''
 
 class Installers(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'Bash validation runs on POSIX')
+    def test_profile_names_reject_upstream_reserved_ids_before_installation(self):
+        source = (ROOT / 'scripts/setup-macos-linux.sh').read_text()
+        helper = source[source.index('valid_profile_name()'):source.index('use_existing_desktop=')]
+        names = ['hermes', 'default', 'test', 'Test', 'tmp', 'root', 'sudo', 'CON', 'NUL', 'COM1',
+                 'ben-personal', 'starter-agent', 'test-agent', 'my-test']
+        script = helper + '\nfor name in "$@"; do if valid_profile_name "$name"; then echo yes; else echo no; fi; done\n'
+        result = subprocess.run(['/bin/bash', '-c', script, 'fixture', *names], text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.splitlines(), ['no'] * 10 + ['yes'] * 4)
+
     def test_profile_contains_safe_agent_starter(self):
         soul = (ROOT / 'profiles/starter-agent/SOUL.md').read_text()
         self.assertTrue(soul.startswith('# SOUL.md - Safe Agent Starter\n'))

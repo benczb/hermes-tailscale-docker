@@ -1,12 +1,15 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validateSettings, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, componentEvent } = require('../core.cjs');
+const { validateSettings, PrivateTranscript, CredentialPrompts, installCommand, installEnvironment, componentEvent, validProfileName } = require('../core.cjs');
 const sample = () => ({ profile: 'Hamburger_01', username: 'Ben', password: 'A long private password!', confirm: 'A long private password!', accepted: true, reset: false });
 
 test('preset validation prevents path/terminal input injection and requires review', () => {
   assert.equal(validateSettings(sample()).profile, 'Hamburger_01');
-  for (const profile of ['../other', 'Default', 'con', 'x\n', '-bad', 'x'.repeat(65)]) assert.throws(() => validateSettings({ ...sample(), profile }));
+  for (const value of [undefined, null, {}, '', 'test', 'Test', 'root', 'sudo']) assert.equal(validProfileName(value), false);
+  assert.equal(validProfileName('ben-personal'), true);
+  for (const profile of ['../other', 'Default', 'hermes', 'test', 'Test', 'tmp', 'root', 'sudo', 'con', 'x\n', '-bad', 'x'.repeat(65)]) assert.throws(() => validateSettings({ ...sample(), profile }));
+  for (const profile of ['ben-personal', 'starter-agent', 'test-agent', 'my-test']) assert.equal(validateSettings({ ...sample(), profile }).profile, profile);
   for (const patch of [{ username: ' ' }, { username: 'a\x1bb' }, { password: 'short' }, { password: 'long password\n' }, { confirm: 'other' }, { accepted: false }]) assert.throws(() => validateSettings({ ...sample(), ...patch }));
 });
 test('secret values never appear in process arguments or inherited environment', () => {
