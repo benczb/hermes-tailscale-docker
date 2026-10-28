@@ -9,7 +9,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 COMMON = ['README.md', 'LICENSE', 'AGENTS.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md',
           'SECURITY.md', 'SUPPORT.md', 'CHANGELOG.md', 'docs/command-setup.md',
-          'docs/agent-install.md', 'docs/releasing.md', 'docs/advanced-setup.md', 'docs/installer-audit.md', 'profiles/starter-agent/.gitignore',
+          'docs/agent-install.md', 'docs/gui-setup.md', 'docs/releasing.md', 'docs/advanced-setup.md', 'docs/installer-audit.md', 'profiles/starter-agent/.gitignore',
           'profiles/starter-agent/distribution.yaml', 'profiles/starter-agent/config.yaml', 'profiles/starter-agent/SOUL.md']
 PLATFORMS = {
     'macos': ['Install-Hermes.command', 'scripts/setup-macos-linux.sh'],

@@ -7,8 +7,8 @@ every machine or remote-device connectivity.
 
 ## Supported versions
 
-Security fixes are developed on `main`. There are currently no published GitHub
-releases or supported older release branches. Historical commits, expired CI
+Security fixes are developed on `main`. Graphical prereleases are previews, not
+stable supported releases; older release branches receive no separate backports. Historical commits, expired CI
 artifacts and older installer ZIPs do not receive separate security backports.
 Command launchers intentionally pin a source snapshot; updating `main` does not
 automatically update a downloaded launcher or the snapshot it uses. Snapshot and

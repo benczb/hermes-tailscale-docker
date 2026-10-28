@@ -6,8 +6,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-REVISION = 'bd1260ac4249763a447db56faca582e4f5ade10c'
-DIGEST = 'ceaec5f06ef08f7a78bb956d455aa51e3bae1b8285fc651181f26936e86a77a9'
+REVISION = '69ff5a45e8181be6c6ceaa4470fb4559ec1344b6'
+DIGEST = 'bb36590787aed474f4e75de4f2b4f6ca097867e6eb58d4b2f02b8cd1d8714b90'
 
 
 class CommandLauncherTests(unittest.TestCase):

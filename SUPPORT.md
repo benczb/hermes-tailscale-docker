@@ -1,6 +1,6 @@
 # Getting help
 
-Start with the [README](README.md), [command setup guide](docs/command-setup.md)
+Start with the [README](README.md), [graphical installer guide](docs/gui-setup.md), [command setup guide](docs/command-setup.md)
 and [agent installation guide](docs/agent-install.md). Platform limitations and
 preview status apply even when an agent starts setup for you.
 

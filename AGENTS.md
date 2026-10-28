@@ -3,12 +3,17 @@
 This is a community setup companion, not an official Nous Research distribution.
 
 For a user who asks to install from this repository, read README.md and
-docs/command-setup.md first. Use start-setup.sh on native macOS/Linux or
-start-setup.ps1 on native Windows to open the current graphical companion preview.
-The launchers download and SHA-256-check a fixed source snapshot, prepare npm
-dependencies, and open the wizard. They require Node.js 24+ and may require native
-build tools. Do not substitute the older bootstrap.py/bootstrap.sh/bootstrap.ps1
-flow: it has different prerequisites, profile behavior and installation defaults.
+docs/gui-setup.md first. Prefer the packaged graphical companion on Windows/macOS:
+download the matching versioned release asset, verify it against release SHA256SUMS,
+and let the user open its installer/app window and approve OS prompts. Packaged
+apps need no Node.js installation merely to open. The Windows EXE installs the
+companion and shortcuts; it does not open an interactive PowerShell installer.
+
+The alternative start-setup.sh / start-setup.ps1 source launchers download a fixed
+source snapshot, verify its SHA-256, prepare npm dependencies and open the wizard.
+They require Node.js 24+ and potentially build tools; see docs/command-setup.md.
+Do not substitute the older bootstrap.py/bootstrap.sh/bootstrap.ps1 flow: it has
+different prerequisites, profile behavior and installation defaults.
 
 Keep Hermes Desktop and its agent runtime native. Docker is optional and is for
 the terminal tool only. Tailscale runs on the host. No separate Linux machine or
@@ -33,6 +38,11 @@ Local terminal mode skips Docker and Windows WSL setup. Docker mode on Windows
 uses Docker Desktop's internal WSL2 backend; updates or a reboot may be needed.
 Never claim WSL is unnecessary for this Windows Docker mode.
 
+The companion initiates missing Docker/Tailscale installation and opens the apps.
+Its readiness waits happen after installation is initiated. Failed component
+installs require explicit retry; startup/connection checks resume automatically.
+After configuration, the user-login launcher starts/verifies the native gateway
+with gateway ensure before the authenticated backend and completion report.
 After setup, inspect installation-ready.txt and distinguish configured forwarding
 from confirmed peer access. Verify port access from another authorized tailnet
 device; do not use Funnel or expose an unauthenticated dashboard publicly.

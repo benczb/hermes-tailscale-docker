@@ -37,7 +37,7 @@ approved installation process. The command does not override organization policy
 ## What happens
 
 1. Check launcher prerequisites, download source revision
-   `bd1260ac4249763a447db56faca582e4f5ade10c`, and verify its embedded SHA-256.
+   `69ff5a45e8181be6c6ceaa4470fb4559ec1344b6`, and verify its embedded SHA-256.
 2. Extract to a fresh temporary directory. Existing Hermes folders are untouched
    during launcher preparation. Run `npm ci --include=dev` with the lockfile and
    open the graphical companion using `npm start`.

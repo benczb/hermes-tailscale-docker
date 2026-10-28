@@ -1,9 +1,11 @@
 # Changelog
 
 This file records user-facing changes from the date it was introduced. It is not
-a complete reconstruction of older commits. No GitHub release has been published yet.
+a complete reconstruction of older commits. Graphical releases are prereleases.
 
 ## Unreleased
+
+## 0.3.0-preview.1
 
 ### Graphical installation update
 

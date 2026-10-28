@@ -225,7 +225,7 @@ copyright and dependency notices preserved.
 - [Get help](../SUPPORT.md)
 - [Changelog](../CHANGELOG.md) and [release checklist](releasing.md)
 
-The project is maintained by [@benczb](https://github.com/benczb). There are no
-published GitHub releases yet; current CI packages and command-based source
-launches are previews. Policies here do not enable GitHub repository settings
+The project is maintained by [@benczb](https://github.com/benczb). Graphical
+packages are versioned prereleases; see the [window-based installer guide](gui-setup.md).
+The terminal ZIPs and command-based source launches remain advanced alternatives. Policies here do not enable GitHub repository settings
 such as private vulnerability reporting or branch protection.

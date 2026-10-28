@@ -13,8 +13,8 @@ if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or -not (Get-Comm
 }
 & node.exe -e 'if (Number(process.versions.node.split(".")[0]) < 24) process.exit(1)'
 if ($LASTEXITCODE -ne 0) { throw 'Node.js 24 or newer is required. Install Node.js 24 LTS, then retry.' }
-$revision = 'bd1260ac4249763a447db56faca582e4f5ade10c'
-$expected = 'ceaec5f06ef08f7a78bb956d455aa51e3bae1b8285fc651181f26936e86a77a9'
+$revision = '69ff5a45e8181be6c6ceaa4470fb4559ec1344b6'
+$expected = 'bb36590787aed474f4e75de4f2b4f6ca097867e6eb58d4b2f02b8cd1d8714b90'
 $work = Join-Path ([IO.Path]::GetTempPath()) ('hermes-companion-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 $archive = Join-Path $work 'source.zip'

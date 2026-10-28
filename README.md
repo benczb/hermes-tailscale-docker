@@ -37,14 +37,14 @@ Choose one setup method:
 |---|---|---|
 | **1. Ask your agent** | You have an AI agent that can run commands on your computer and want help with prerequisites. | [Agent-assisted setup](docs/agent-install.md) |
 | **2. Run a command** | You prefer to paste a command yourself and open the graphical wizard. Requires Node.js 24+, npm and potentially build tools. | [macOS / Linux command](docs/command-setup.md#macos--linux) · [Windows command](docs/command-setup.md#windows) |
-| **3. Download the installer** | You prefer to extract files and run a terminal installer. This advanced method builds Desktop from source by default. | [Installer setup](docs/advanced-setup.md#direct-downloads) |
+| **3. Download the installer (recommended)** | You want an installer window: a Windows setup EXE or a macOS app. No Node.js is needed to open it. | [Graphical installer guide](docs/gui-setup.md) |
 
 ### 1. Ask your agent
 
 Copy this instruction into your agent:
 
 > Install Hermes Desktop using https://github.com/benczb/hermes-tailscale-docker.
-> Read AGENTS.md and docs/command-setup.md, check my computer's prerequisites,
+> Read AGENTS.md and docs/gui-setup.md, check my computer's prerequisites,
 > and open the graphical setup wizard. Keep Hermes native; use Docker only for
 > terminal commands if I select it. Let me enter credentials and approve sign-ins.
 > Preserve existing profiles and report anything still needing verification.
@@ -60,16 +60,19 @@ follow the section for your operating system.
 
 ### 3. Download the installer
 
-Choose your operating system below, then follow the
-[package setup instructions](docs/advanced-setup.md#direct-downloads). These are
-advanced terminal installers using the source-build path by default:
+Download the graphical companion, open it and follow the window. It initiates
+missing Docker/Tailscale installation, opens their apps, and continues through
+first-run and connection checks. After configuration, it starts and verifies the
+Hermes gateway before reporting completion.
 
-| macOS | Linux | Windows |
+| Windows x64 | macOS | Linux x64 |
 |---|---|---|
-| [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-macos.zip) | [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-linux.zip) | [Download installer](https://raw.githubusercontent.com/benczb/hermes-tailscale-docker/main/downloads/hermes-workshop-windows.zip) |
+| [Download setup EXE](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Setup-Companion-0.3.0-preview.1-windows-x64.exe) | [Apple Silicon app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-mac-arm64.zip) · [Intel app](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-mac-x64.zip) | [Download AppImage](https://github.com/benczb/hermes-tailscale-docker/releases/download/v0.3.0-preview.1/Hermes-Companion-0.3.0-preview.1-linux-x86_64.AppImage) |
 
-Extract into `hermes-starter-agent-installer/` and use the included launcher.
-[Package instructions](docs/advanced-setup.md) · [Checksums](downloads/SHA256SUMS)
+[Window-by-window guide](docs/gui-setup.md) ·
+[Preview release and checksums](https://github.com/benczb/hermes-tailscale-docker/releases/tag/v0.3.0-preview.1).
+The older [terminal installer ZIPs](docs/advanced-setup.md#direct-downloads) remain
+an advanced option and open a terminal/PowerShell window.
 
 ## Before you install
 
@@ -81,8 +84,8 @@ Extract into `hermes-starter-agent-installer/` and use the included launcher.
   updates or a restart. Local terminal mode skips Docker/WSL preparation.
 - You complete sign-ins and OS approvals. Model setup and access from another
   authorized tailnet device still need verification after installation.
-- Clean-machine validation and trusted publisher signing/notarization remain pending.
-  There are no published GitHub releases yet.
+- These are prerelease builds. Clean-machine validation and publisher signing/
+  notarization remain pending; Windows/macOS trust checks may prevent opening them.
 
 ## Help and contributions
 
