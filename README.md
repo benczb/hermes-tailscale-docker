@@ -4,9 +4,7 @@
 
 ### Installation walkthrough
 
-[Watch the step-by-step setup video with cursor guidance and close-up zooms](https://github.com/benczb/hermes-tailscale-docker/raw/refs/heads/main/docs/media/hermes-install-walkthrough.mp4)
-
-The video demonstrates the installer UI from its code, including the original Desktop installer handoff. It is not a recording of a completed Windows installation.
+https://github.com/user-attachments/assets/4c59c5fa-f337-434c-95b4-a927767ca598
 
 A guided installer for **Hermes Desktop, optional Docker terminal tools and
 Tailscale** on your computer. Choose your profile name, dashboard login and access
